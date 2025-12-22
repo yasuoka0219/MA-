@@ -5,12 +5,15 @@
 
 ## 現在の状態
 - **Step1基盤** 完了
-- FastAPI + PostgreSQL + SQLAlchemy 2.x + Alembic
+- **Step2シナリオ実行エンジン** 完了
+- FastAPI + PostgreSQL + SQLAlchemy 2.x + Alembic + APScheduler
 - 個人情報保護対応（同意・配信停止・監査ログ・権限）
 - メール誤送信防止（dev/staging環境でのリダイレクト制御）
 - **追加機能**: 学年（grade_label）からの卒業年度推定
 - **追加機能**: EmailService抽象化（非同期対応準備）
 - **追加機能**: CSVインポート事故率低減（正規化・プレビュー・ドライラン）
+- **追加機能**: シナリオ自動実行（5分間隔、レート制限、リトライ）
+- **追加機能**: メール開封トラッキング（透過1x1 GIF）
 
 ## プロジェクト構造
 ```
@@ -19,12 +22,15 @@ src/ma_tool/
 ├── config.py         # 環境変数管理（Pydantic Settings）
 ├── database.py       # DBセッション管理
 ├── seed.py           # 初期データ投入
+├── seed_step2.py     # Step2テストデータ（100リード、3テンプレート、3シナリオ、50イベント）
 ├── api/
 │   ├── deps.py       # 認証・依存性注入
 │   └── endpoints/
 │       ├── health.py      # ヘルスチェック
 │       ├── csv_import.py  # CSVインポート（プレビュー対応）
-│       └── unsubscribe.py # 配信停止
+│       ├── unsubscribe.py   # 配信停止
+│       ├── scheduler_api.py # スケジューラー監視API
+│       └── tracking.py      # 開封トラッキング（1x1 GIF）
 ├── models/           # SQLAlchemyモデル
 │   ├── user.py       # ユーザー（権限管理）
 │   ├── lead.py       # リード（学生）+ GraduationYearSource
@@ -41,7 +47,9 @@ src/ma_tool/
     ├── csv_normalizer.py  # 列名・値の正規化
     ├── csv_import.py      # CSVインポート（学年推定対応）
     ├── email.py           # メール送信（抽象化・誤送信防止）
-    └── unsubscribe.py     # 配信停止サービス
+    ├── unsubscribe.py     # 配信停止サービス
+    ├── scenario_engine.py  # シナリオ評価ロジック
+    └── scheduler.py        # APSchedulerラッパー・送信処理
 ```
 
 ## 環境変数（Replit Secrets）
@@ -54,7 +62,8 @@ src/ma_tool/
 | MAIL_REDIRECT_TO | dev/staging時必須 | 強制リダイレクト先 |
 | MAIL_ALLOWLIST | - | 許可ドメイン（カンマ区切り） |
 | UNSUBSCRIBE_SECRET | - | 配信停止トークン署名用 |
-| TRACKING_SECRET | - | 開封計測用（Step4で使用） |
+| TRACKING_SECRET | - | 開封計測用 |
+| RATE_LIMIT_PER_MINUTE | - | メール送信レート制限（デフォルト: 60） |
 
 ## APIエンドポイント
 - `GET /` - API情報
@@ -64,6 +73,10 @@ src/ma_tool/
 - `POST /import/csv` - CSVインポート（レガシー互換）
 - `GET /import/errors/{session_id}` - エラーCSVダウンロード
 - `GET /unsubscribe/{token}` - 配信停止
+- `GET /scheduler/status` - スケジューラー状態
+- `GET /scheduler/pending` - 送信待ちメール一覧
+- `POST /scheduler/trigger` - 手動トリガー（テスト用）
+- `GET /track/{token}/open.gif` - 開封トラッキングピクセル
 
 ## 起動手順
 ```bash
@@ -166,8 +179,34 @@ UTF-8 → CP932 → Shift-JIS → EUC-JP の順で自動検出
 5. **卒業年度推定**: CSVにgraduation_yearがない場合、grade_labelから自動推定
 6. **メールサービス疎結合**: Provider抽象化により将来の非同期化・プロバイダー切り替えに対応
 7. **CSVインポート安全化**: プレビュー→確定の2ステップ、日本語列名対応、値の正規化
+8. **シナリオ実行**: 5分間隔でスケジューラーが新規イベントを処理し、配信条件を満たすリードにメール予約を作成
+9. **重複送信防止**: send_logsテーブルにlead_id×scenario_id×event_idの一意制約、個別コミットで堅牢性確保
+10. **送信時間帯制限**: 9:00-20:00 JST（時間外は翌9:00にロールオーバー）
+11. **レート制限**: 1分あたり最大60通（設定可能）、上限到達時は次回tickで継続
+
+## シナリオ配信条件
+
+メールが配信されるには以下のすべてを満たす必要があります:
+
+1. **同意確認**: lead.consent = True
+2. **配信停止確認**: lead.unsubscribed = False
+3. **テンプレート承認**: template.approved = True
+4. **卒業年度ルール**: scenarioのgraduation_year_ruleに合致
+   - `{"type": "all"}` - 全リード対象
+   - `{"type": "in", "years": [2026, 2027]}` - 特定年度リスト
+   - `{"type": "within_months", "months": 18}` - 卒業まで18ヶ月以内（学年度考慮）
+5. **頻度制限**: 同一シナリオの最終送信からfrequency_days日以上経過
+6. **重複防止**: 同一lead×scenario×eventの組み合わせで未送信
+
+## graduation_year_rule「within_months」の計算
+
+学年度（4月〜翌3月）を考慮して計算:
+- 現在の学年度 = 現在月≧4なら現在年+1、そうでなければ現在年
+- N ヶ月後の学年度 = (現在日 + Nヶ月)の月≧4ならその年+1
+- 対象 = 卒業年度が現在学年度〜N ヶ月後学年度の範囲内
 
 ## 最近の変更
+- 2024-12-22: Step2シナリオ実行エンジン実装完了
 - 2024-12-22: CSVインポート事故率低減（正規化・プレビュー・ドライラン）
 - 2024-12-22: graduation_year_source追加、EmailService抽象化
 - 2024-12: Step1基盤実装完了
