@@ -1,0 +1,6 @@
+email,name,school_name,graduation_year,interest_tags,consent
+tanaka@example.com,田中太郎,東京高校,2025,経済学部,true
+suzuki@example.com,鈴木花子,神奈川高校,2026,法学部,true
+yamada@example.com,山田一郎,千葉高校,2025,工学部,true
+sato@example.com,佐藤美咲,埼玉高校,2027,医学部,false
+invalid-email,名前のみ,テスト高校,2025,,true

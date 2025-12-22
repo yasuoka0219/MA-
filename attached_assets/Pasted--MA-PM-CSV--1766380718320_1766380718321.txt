@@ -1,0 +1,142 @@
+あなたは大学向けMAツールを開発するシニアフルスタックエンジニア兼PMです。
+目的は「大学が保有する高校生/学生データ（CSV/スプレッドシート）に対して、卒業年度×イベント起点で、学年最適化したメールを自動配信するMAツール」をReplitでMVP構築することです。
+
+# 最重要ポリシー（必ず守る）
+- 個人情報を扱うため、MVPから同意(consent)・配信停止(unsubscribe)・監査ログ(audit)・権限(role)を実装する
+- メール誤送信防止を最優先：dev/stagingでは実宛先に飛ばさない（強制リダイレクト or allowlist制御）
+- 二重送信防止と頻度制限は後続Step2で必ず入るように、Step1で必要なDB設計を整える
+- 設計→DB→APIの順で作る。最初からUIを作り込み過ぎない
+
+# 技術スタック
+- Backend: FastAPI
+- DB: PostgreSQL（Replit Postgres または Supabase）
+- ORM: SQLAlchemy 2.x
+- Migration: Alembic
+- Settings: Pydantic Settings（環境変数一元管理）
+- Email: SendGrid API
+
+# 環境変数（Replit Secretsに設定する想定）
+- DATABASE_URL
+- SENDGRID_API_KEY
+- APP_ENV = dev | staging | prod
+- MAIL_FROM（例: noreply@xxx.jp）
+- MAIL_REDIRECT_TO（dev/stagingで強制送信先。例: test@yourdomain.com）
+- MAIL_ALLOWLIST（任意。例: example.ac.jp,yourdomain.com）
+- UNSUBSCRIBE_SECRET（署名用）
+- TRACKING_SECRET（開封計測用。Step4で使用）
+
+# Step1で実装する範囲（基盤）
+## 1) プロジェクト初期化
+- ディレクトリ構成を提案し、FastAPIが起動する状態にする
+- /health エンドポイント
+- settings.py で環境変数を読み、未設定なら起動時に分かりやすくエラー
+
+## 2) DBモデル定義（MVP必須）
+### users（Step3の権限に備える）
+- id (PK)
+- email (unique)
+- name
+- role (enum: admin/editor/approver/viewer)
+- is_active
+- created_at
+
+### leads（学生/高校生）
+- id
+- email (unique)  ※ユニークキーはメール
+- name
+- school_name
+- graduation_year（整数）
+- interest_tags（JSON or text）
+- consent（bool）
+- unsubscribed（bool）
+- created_at / updated_at
+
+### events（イベント/行動）
+- id
+- lead_id (FK)
+- type（"OC" "資料請求" "説明会" など）
+- event_date（datetime）
+- created_at
+
+### templates（承認フロー前提）
+- id
+- name
+- subject
+- body_html
+- status（draft/pending/approved/rejected）
+- created_by (FK users)
+- approved_by (FK users, nullable)
+- approved_at (nullable)
+- rejected_reason (nullable)
+- created_at / updated_at
+
+### scenarios（Step2の送付エンジン用の雛形だけ）
+- id
+- name
+- template_id (FK templates)
+- trigger_event_type
+- delay_days
+- frequency_days
+- graduation_year_rule（JSON）
+- is_enabled
+- created_at / updated_at
+
+### send_logs（Step2/4で使う）
+- id
+- lead_id (FK)
+- scenario_id (FK)
+- scheduled_for（datetime）
+- sent_at（nullable）
+- status（scheduled/sent/failed）
+- opened_at（nullable）
+- attempt_count（int default 0）
+- error_message（nullable）
+- created_at
+※Step2で二重送信防止の一意制約を入れる前提で、lead_id×scenario_id×scheduled_for をユニーク化できる設計にする
+
+### audit_logs（監査）
+- id
+- actor_user_id (FK users)
+- actor_role_snapshot（文字列）  ※当時のロールを残す
+- action（例: LEAD_IMPORTED, TEMPLATE_APPROVED, EMAIL_SENT）
+- target_type（例: lead/template/scenario/send_log）
+- target_id（nullable）
+- meta_json（JSON、差戻し理由など）
+- created_at
+
+- Alembicでマイグレーションを作成し、初回適用できること
+
+## 3) 認証（MVP簡易でOK）
+- まずは簡易認証で良い（例: 1ユーザー固定 or 簡易ログイン）
+- ただしロールを持つusersテーブルは必ず作り、後で本格化できる形にする
+
+## 4) CSVインポートAPI（バリデーション付き）
+- エンドポイント: POST /import/csv
+- CSVをアップロード→プレビュー→確定インポートが理想だが、MVPでは「アップロードで即インポート」でも可
+- バリデーション：
+ - email必須、形式チェック
+ - graduation_year必須（CSVにある前提）
+ - consent必須（true/false）
+- 重複はメールでupsert（既存leadは更新）
+- インポート結果（追加件数/更新件数/エラー行）を返す
+- audit_logs に LEAD_IMPORTED を記録（actor_user_idも）
+
+## 5) 配信停止（ワンクリック解除）
+- GET /unsubscribe/{token}
+- tokenは lead_id と期限（任意）を含む署名付き
+- lead.unsubscribed=true に更新し、結果ページを返す
+- audit_logs に LEAD_UNSUBSCRIBED を記録
+
+## 6) SendGrid送信ユーティリティ（誤送信防止の二重ガード）
+- dev/staging の場合：
+ - 送信先は必ず MAIL_REDIRECT_TO に差し替える（元の宛先はログに保存）
+ - さらに MAIL_ALLOWLIST がある場合は allowlist外は送信せず status=blocked としてログに残す（どちらか一方でもOKだが、可能なら両方）
+- prod の場合のみ実宛先へ送信
+- 送信関数は後続Step2のエンジンから呼べる形で実装
+- 送信のたびに audit_logs を残す
+
+# 仕上げ（必須）
+- seedデータ作成（adminユーザー1名）
+- 起動手順（Replit）
+- テスト手順（CSVサンプル例も添える）
+- 重要な設計判断の説明（短く）
