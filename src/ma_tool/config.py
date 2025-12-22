@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     
     UNSUBSCRIBE_SECRET: str = "change-me-in-production"
     TRACKING_SECRET: str = "change-me-in-production"
+    BASE_URL: str = "http://localhost:5000"
+    
+    SCHEDULER_ENABLED: bool = True
+    RATE_LIMIT_PER_MINUTE: int = 60
     
     @field_validator("APP_ENV")
     @classmethod
@@ -53,3 +57,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    return settings
