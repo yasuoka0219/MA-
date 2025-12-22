@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Templates - MA Tool{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Template List</h2>
+        {% if can_edit %}
+        <a href="/templates/new" class="btn btn-primary">+ New Template</a>
+        {% endif %}
+    </div>
+    
+    <div class="filters">
+        <a href="/templates" class="filter-btn {% if not status_filter %}active{% endif %}">All</a>
+        <a href="/templates?status=draft" class="filter-btn {% if status_filter == 'draft' %}active{% endif %}">Draft</a>
+        <a href="/templates?status=pending" class="filter-btn {% if status_filter == 'pending' %}active{% endif %}">Pending</a>
+        <a href="/templates?status=approved" class="filter-btn {% if status_filter == 'approved' %}active{% endif %}">Approved</a>
+        <a href="/templates?status=rejected" class="filter-btn {% if status_filter == 'rejected' %}active{% endif %}">Rejected</a>
+    </div>
+    
+    {% if templates %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Created By</th>
+                <th>Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in templates %}
+            <tr>
+                <td>{{ t.id }}</td>
+                <td><a href="/templates/{{ t.id }}">{{ t.name }}</a></td>
+                <td>{{ t.subject[:50] }}{% if t.subject|length > 50 %}...{% endif %}</td>
+                <td><span class="status-badge status-{{ t.status.value }}">{{ t.status.value }}</span></td>
+                <td>{{ t.creator.name if t.creator else 'Unknown' }}</td>
+                <td>{{ t.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <div class="action-buttons">
+                        <a href="/templates/{{ t.id }}" class="btn btn-secondary btn-sm">View</a>
+                        {% if can_edit and t.status.value != 'approved' %}
+                        <a href="/templates/{{ t.id }}/edit" class="btn btn-secondary btn-sm">Edit</a>
+                        {% endif %}
+                        {% if can_edit %}
+                        <form action="/templates/{{ t.id }}/clone" method="POST" style="display: inline;">
+                            <button type="submit" class="btn btn-secondary btn-sm">Clone</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; padding: 40px; color: #5f6368;">
+        No templates found. {% if can_edit %}<a href="/templates/new">Create one</a>{% endif %}
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from src.ma_tool.api.endpoints import health, csv_import, unsubscribe, scheduler_api, tracking
+from src.ma_tool.api.endpoints import health, csv_import, unsubscribe, scheduler_api, tracking, templates, views
 from src.ma_tool.config import settings
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,8 @@ app.include_router(csv_import.router, tags=["Import"])
 app.include_router(unsubscribe.router, tags=["Unsubscribe"])
 app.include_router(scheduler_api.router, tags=["Scheduler"])
 app.include_router(tracking.router, tags=["Tracking"])
+app.include_router(templates.router, tags=["Templates"])
+app.include_router(views.router)
 
 
 @app.get("/")

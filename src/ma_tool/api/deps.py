@@ -22,11 +22,38 @@ def get_current_user(
     return user
 
 
-def require_admin(current_user: User = Depends(get_current_user)) -> dict:
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
-    return {"user_id": current_user.id, "role": current_user.role.value}
+    return current_user
+
+
+def require_editor_or_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Editor can create/edit templates, Admin can do everything"""
+    if current_user.role not in [UserRole.ADMIN, UserRole.EDITOR]:
+        raise HTTPException(status_code=403, detail="Editor or Admin access required")
+    return current_user
+
+
+def require_approver_or_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Approver can approve/reject templates, Admin can do everything"""
+    if current_user.role not in [UserRole.ADMIN, UserRole.APPROVER]:
+        raise HTTPException(status_code=403, detail="Approver or Admin access required")
+    return current_user
+
+
+def can_edit_template(user: User) -> bool:
+    """Check if user can edit templates (editor or admin)"""
+    return user.role in [UserRole.ADMIN, UserRole.EDITOR]
+
+
+def can_approve_template(user: User) -> bool:
+    """Check if user can approve/reject templates (approver or admin)"""
+    return user.role in [UserRole.ADMIN, UserRole.APPROVER]
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 DbSession = Annotated[Session, Depends(get_db)]
+EditorUser = Annotated[User, Depends(require_editor_or_admin)]
+ApproverUser = Annotated[User, Depends(require_approver_or_admin)]
+AdminUser = Annotated[User, Depends(require_admin)]

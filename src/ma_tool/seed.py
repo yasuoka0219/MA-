@@ -28,10 +28,44 @@ def create_admin_user(db: Session) -> User:
     return admin
 
 
+def create_test_users(db: Session) -> list[User]:
+    users_data = [
+        ("editor@example.com", "Editor User", UserRole.EDITOR),
+        ("approver@example.com", "Approver User", UserRole.APPROVER),
+        ("viewer@example.com", "Viewer User", UserRole.VIEWER),
+    ]
+    
+    created = []
+    for email, name, role in users_data:
+        existing = db.execute(
+            select(User).where(User.email == email)
+        ).scalar_one_or_none()
+        
+        if existing:
+            print(f"{role.value} user already exists: {email}")
+            created.append(existing)
+            continue
+        
+        user = User(
+            email=email,
+            name=name,
+            role=role,
+            is_active=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        print(f"Created {role.value} user: {email} (ID: {user.id})")
+        created.append(user)
+    
+    return created
+
+
 def run_seed():
     db = SessionLocal()
     try:
         create_admin_user(db)
+        create_test_users(db)
         print("Seed completed successfully")
     finally:
         db.close()

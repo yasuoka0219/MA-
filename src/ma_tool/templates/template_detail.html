@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ template.name }} - MA Tool{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">{{ template.name }}</h2>
+        <span class="status-badge status-{{ template.status.value }}">{{ template.status.value }}</span>
+    </div>
+    
+    {% if template.status.value == 'rejected' and template.rejected_reason %}
+    <div class="rejection-reason">
+        <strong>Rejection Reason:</strong>
+        {{ template.rejected_reason }}
+    </div>
+    {% endif %}
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <div>
+            <p><strong>Created by:</strong> {{ template.creator.name if template.creator else 'Unknown' }}</p>
+            <p><strong>Created at:</strong> {{ template.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+        </div>
+        <div>
+            {% if template.approved_by %}
+            <p><strong>Approved by:</strong> {{ template.approver.name if template.approver else 'Unknown' }}</p>
+            <p><strong>Approved at:</strong> {{ template.approved_at.strftime('%Y-%m-%d %H:%M') if template.approved_at else '-' }}</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label>Subject</label>
+        <div style="padding: 10px 12px; background: #f8f9fa; border-radius: 4px;">
+            {{ template.subject }}
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label>Body (HTML)</label>
+        <div style="padding: 10px 12px; background: #f8f9fa; border-radius: 4px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto;">{{ template.body_html }}</div>
+    </div>
+    
+    <div class="preview-box">
+        <h4>Preview</h4>
+        <div style="background: white; padding: 16px; border: 1px solid #ddd; margin-top: 12px;">
+            {{ template.body_html|safe }}
+        </div>
+    </div>
+    
+    <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
+        <a href="/templates" class="btn btn-secondary">Back to List</a>
+        
+        {% if can_edit and template.status.value != 'approved' %}
+        <a href="/templates/{{ template.id }}/edit" class="btn btn-primary">Edit</a>
+        {% endif %}
+        
+        {% if can_edit and template.status.value in ['draft', 'rejected'] %}
+        <form action="/templates/{{ template.id }}/submit" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-warning">Submit for Approval</button>
+        </form>
+        {% endif %}
+        
+        {% if can_approve and template.status.value == 'pending' %}
+        <form action="/templates/{{ template.id }}/approve" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-success">Approve</button>
+        </form>
+        <button type="button" class="btn btn-danger" onclick="showModal('reject-modal')">Reject</button>
+        {% endif %}
+        
+        {% if can_edit %}
+        <form action="/templates/{{ template.id }}/clone" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-secondary">Clone</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+{% if can_approve and template.status.value == 'pending' %}
+<div id="reject-modal" class="modal-overlay">
+    <div class="modal">
+        <h3>Reject Template</h3>
+        <form action="/templates/{{ template.id }}/reject" method="POST">
+            <div class="form-group">
+                <label for="reason">Rejection Reason *</label>
+                <textarea id="reason" name="reason" required 
+                          placeholder="Please provide a reason for rejection..."
+                          style="min-height: 100px;"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="hideModal('reject-modal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">Reject</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
