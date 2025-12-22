@@ -1,15 +1,54 @@
 """CSV import service with validation"""
 import csv
 import io
-from typing import List, Tuple
+import re
+from datetime import datetime
+from typing import List, Tuple, Optional
 from email_validator import validate_email, EmailNotValidError
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from src.ma_tool.models.lead import Lead
+from src.ma_tool.models.lead import Lead, GraduationYearSource
 from src.ma_tool.models.user import User
 from src.ma_tool.services.audit import log_action
 from src.ma_tool.schemas.lead import CSVImportResult
+
+
+GRADE_LABEL_MAP = {
+    "高1": 1, "高2": 2, "高3": 3,
+    "1": 1, "2": 2, "3": 3,
+    "1年": 1, "2年": 2, "3年": 3,
+    "高校1年": 1, "高校2年": 2, "高校3年": 3,
+}
+
+
+def estimate_graduation_year_from_grade(grade_label: str) -> Optional[int]:
+    grade_label = grade_label.strip()
+    grade = GRADE_LABEL_MAP.get(grade_label)
+    
+    if grade is None:
+        match = re.match(r"^(\d)$", grade_label)
+        if match:
+            grade = int(match.group(1))
+            if grade < 1 or grade > 3:
+                return None
+    
+    if grade is None:
+        return None
+    
+    today = datetime.now()
+    current_year = today.year
+    current_month = today.month
+    
+    if current_month >= 4:
+        school_year_start = current_year
+    else:
+        school_year_start = current_year - 1
+    
+    years_until_graduation = 3 - grade + 1
+    graduation_year = school_year_start + years_until_graduation
+    
+    return graduation_year
 
 
 def validate_row(row: dict, row_num: int) -> Tuple[bool, dict, List[str]]:
@@ -32,16 +71,27 @@ def validate_row(row: dict, row_num: int) -> Tuple[bool, dict, List[str]]:
     cleaned["name"] = name
     
     graduation_year = row.get("graduation_year", "").strip()
-    if not graduation_year:
-        errors.append("graduation_year is required")
-    else:
+    grade_label = row.get("grade_label", "").strip()
+    
+    if graduation_year:
         try:
             year = int(graduation_year)
             if year < 2000 or year > 2100:
                 errors.append("graduation_year must be between 2000 and 2100")
-            cleaned["graduation_year"] = year
+            else:
+                cleaned["graduation_year"] = year
+                cleaned["graduation_year_source"] = GraduationYearSource.CSV
         except ValueError:
             errors.append("graduation_year must be a valid integer")
+    elif grade_label:
+        estimated = estimate_graduation_year_from_grade(grade_label)
+        if estimated:
+            cleaned["graduation_year"] = estimated
+            cleaned["graduation_year_source"] = GraduationYearSource.ESTIMATED
+        else:
+            errors.append(f"could not estimate graduation_year from grade_label: {grade_label}")
+    else:
+        errors.append("graduation_year or grade_label is required")
     
     consent_str = row.get("consent", "").strip().lower()
     if consent_str in ("true", "1", "yes"):
@@ -64,6 +114,7 @@ def import_csv(
 ) -> CSVImportResult:
     added = 0
     updated = 0
+    estimated_count = 0
     errors = []
     
     reader = csv.DictReader(io.StringIO(csv_content))
@@ -75,6 +126,9 @@ def import_csv(
             errors.append({"row": row_num, "errors": row_errors, "data": row})
             continue
         
+        if cleaned.get("graduation_year_source") == GraduationYearSource.ESTIMATED:
+            estimated_count += 1
+        
         existing = db.execute(
             select(Lead).where(Lead.email == cleaned["email"])
         ).scalar_one_or_none()
@@ -83,6 +137,9 @@ def import_csv(
             existing.name = cleaned["name"]
             existing.school_name = cleaned["school_name"]
             existing.graduation_year = cleaned["graduation_year"]
+            existing.graduation_year_source = cleaned.get(
+                "graduation_year_source", GraduationYearSource.CSV
+            )
             existing.interest_tags = cleaned["interest_tags"]
             existing.consent = cleaned["consent"]
             updated += 1
@@ -98,7 +155,12 @@ def import_csv(
         actor=actor,
         action="LEAD_IMPORTED",
         target_type="lead",
-        meta={"added": added, "updated": updated, "error_count": len(errors)}
+        meta={
+            "added": added,
+            "updated": updated,
+            "error_count": len(errors),
+            "estimated_graduation_year_count": estimated_count
+        }
     )
     
     return CSVImportResult(
