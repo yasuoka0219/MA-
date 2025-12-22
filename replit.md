@@ -6,7 +6,8 @@
 ## 現在の状態
 - **Step1基盤** 完了
 - **Step2シナリオ実行エンジン** 完了
-- FastAPI + PostgreSQL + SQLAlchemy 2.x + Alembic + APScheduler
+- **Step3テンプレート管理・承認フロー** 完了
+- FastAPI + PostgreSQL + SQLAlchemy 2.x + Alembic + APScheduler + Jinja2
 - 個人情報保護対応（同意・配信停止・監査ログ・権限）
 - メール誤送信防止（dev/staging環境でのリダイレクト制御）
 - **追加機能**: 学年（grade_label）からの卒業年度推定
@@ -14,6 +15,7 @@
 - **追加機能**: CSVインポート事故率低減（正規化・プレビュー・ドライラン）
 - **追加機能**: シナリオ自動実行（5分間隔、レート制限、リトライ）
 - **追加機能**: メール開封トラッキング（透過1x1 GIF）
+- **追加機能**: テンプレート承認ワークフロー（draft→pending→approved/rejected）
 
 ## プロジェクト構造
 ```
@@ -30,7 +32,14 @@ src/ma_tool/
 │       ├── csv_import.py  # CSVインポート（プレビュー対応）
 │       ├── unsubscribe.py   # 配信停止
 │       ├── scheduler_api.py # スケジューラー監視API
-│       └── tracking.py      # 開封トラッキング（1x1 GIF）
+│       ├── tracking.py      # 開封トラッキング（1x1 GIF）
+│       ├── templates.py     # テンプレートREST API
+│       └── views.py         # テンプレート管理UI（Jinja2）
+├── templates/         # Jinja2テンプレート
+│   ├── base.html           # ベースレイアウト
+│   ├── template_list.html  # テンプレート一覧
+│   ├── template_form.html  # 作成・編集フォーム
+│   └── template_detail.html # 詳細・承認画面
 ├── models/           # SQLAlchemyモデル
 │   ├── user.py       # ユーザー（権限管理）
 │   ├── lead.py       # リード（学生）+ GraduationYearSource
@@ -49,7 +58,8 @@ src/ma_tool/
     ├── email.py           # メール送信（抽象化・誤送信防止）
     ├── unsubscribe.py     # 配信停止サービス
     ├── scenario_engine.py  # シナリオ評価ロジック
-    └── scheduler.py        # APSchedulerラッパー・送信処理
+    ├── scheduler.py        # APSchedulerラッパー・送信処理
+    └── template.py         # テンプレート管理サービス
 ```
 
 ## 環境変数（Replit Secrets）
@@ -77,6 +87,21 @@ src/ma_tool/
 - `GET /scheduler/pending` - 送信待ちメール一覧
 - `POST /scheduler/trigger` - 手動トリガー（テスト用）
 - `GET /track/{token}/open.gif` - 開封トラッキングピクセル
+- **テンプレート管理API**:
+  - `GET /api/templates` - テンプレート一覧
+  - `POST /api/templates` - テンプレート作成
+  - `GET /api/templates/{id}` - テンプレート詳細
+  - `PUT /api/templates/{id}` - テンプレート更新
+  - `POST /api/templates/{id}/submit` - 承認申請
+  - `POST /api/templates/{id}/approve` - 承認
+  - `POST /api/templates/{id}/reject` - 差戻し
+  - `POST /api/templates/{id}/clone` - 複製
+  - `GET /api/templates/variables` - 利用可能な変数一覧
+- **テンプレート管理UI**:
+  - `GET /templates` - テンプレート一覧画面
+  - `GET /templates/new` - 新規作成画面
+  - `GET /templates/{id}` - 詳細画面
+  - `GET /templates/{id}/edit` - 編集画面
 
 ## 起動手順
 ```bash
@@ -183,6 +208,8 @@ UTF-8 → CP932 → Shift-JIS → EUC-JP の順で自動検出
 9. **重複送信防止**: send_logsテーブルにlead_id×scenario_id×event_idの一意制約、個別コミットで堅牢性確保
 10. **送信時間帯制限**: 9:00-20:00 JST（時間外は翌9:00にロールオーバー）
 11. **レート制限**: 1分あたり最大60通（設定可能）、上限到達時は次回tickで継続
+12. **テンプレート承認フロー**: draft→pending→approved/rejected、承認済みは編集不可（複製して新版作成）
+13. **ロールベースアクセス制御**: admin（全権限）、editor（作成・編集・申請）、approver（承認・差戻し）、viewer（閲覧のみ）
 
 ## シナリオ配信条件
 
@@ -205,7 +232,58 @@ UTF-8 → CP932 → Shift-JIS → EUC-JP の順で自動検出
 - N ヶ月後の学年度 = (現在日 + Nヶ月)の月≧4ならその年+1
 - 対象 = 卒業年度が現在学年度〜N ヶ月後学年度の範囲内
 
+## ロール権限マトリックス
+
+| 操作 | admin | editor | approver | viewer |
+|------|-------|--------|----------|--------|
+| テンプレート閲覧 | ○ | ○ | ○ | ○ |
+| テンプレート作成 | ○ | ○ | × | × |
+| テンプレート編集 | ○ | ○ | × | × |
+| 承認申請 | ○ | ○ | × | × |
+| 承認/差戻し | ○ | × | ○ | × |
+| テンプレート複製 | ○ | ○ | × | × |
+| テンプレート削除 | ○ | × | × | × |
+
+## テンプレートステータス遷移
+
+```
+draft ─────→ pending ─────→ approved
+  ↑             │
+  │             ↓
+  └───────── rejected
+```
+
+- **draft**: 作成直後、編集中
+- **pending**: 承認待ち（editorが申請）
+- **approved**: 承認済み（メール送信可能、編集不可）
+- **rejected**: 差戻し（理由付き、編集して再申請可能）
+
+## 動作確認手順
+
+### 1. シードデータ投入
+```bash
+python -m src.ma_tool.seed
+```
+
+テストユーザーが作成されます:
+- ID 1: admin@example.com (admin)
+- ID 2: editor@example.com (editor)
+- ID 3: approver@example.com (approver)
+- ID 4: viewer@example.com (viewer)
+
+### 2. ブラウザでアクセス
+`http://localhost:5000/templates`
+
+### 3. 承認フローテスト
+
+1. **Editorでログイン**: 画面右上のドロップダウンで「Editor User」を選択
+2. **テンプレート作成**: 「New Template」から新規作成
+3. **承認申請**: 作成したテンプレートの詳細画面で「Submit for Approval」
+4. **Approverでログイン**: ドロップダウンで「Approver User」に切り替え
+5. **承認**: 該当テンプレートを開き「Approve」または「Reject」
+
 ## 最近の変更
+- 2024-12-22: Step3テンプレート管理・承認フロー実装完了
 - 2024-12-22: Step2シナリオ実行エンジン実装完了
 - 2024-12-22: CSVインポート事故率低減（正規化・プレビュー・ドライラン）
 - 2024-12-22: graduation_year_source追加、EmailService抽象化
