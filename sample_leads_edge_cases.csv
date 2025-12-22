@@ -1,8 +1,0 @@
-メールアドレス,氏名,高校名,学年,志望学部,同意
-test1@example.com,山本花子,京都高校,高校１年生,法学部,同意あり
-test2@example.com,田村太郎,兵庫高校,２年,工学部,済
-test3@example.com,木村美咲,奈良高校,高三,教育学部,○
-test4@example.com,加藤健太,和歌山高校,一年生,理学部,はい
-TEST5＠EXAMPLE．COM,高橋次郎,滋賀高校,高2,医学部,TRUE
-invalid-email,名前のみ,テスト高校,高1,経済学部,曖昧
-test6@example.com,中山美優,三重高校,高1,文学部,×
