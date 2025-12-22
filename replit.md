@@ -7,6 +7,7 @@
 - **Step1基盤** 完了
 - **Step2シナリオ実行エンジン** 完了
 - **Step3テンプレート管理・承認フロー** 完了
+- **Step4開封トラッキング・ダッシュボード** 完了
 - FastAPI + PostgreSQL + SQLAlchemy 2.x + Alembic + APScheduler + Jinja2
 - 個人情報保護対応（同意・配信停止・監査ログ・権限）
 - メール誤送信防止（dev/staging環境でのリダイレクト制御）
@@ -14,8 +15,9 @@
 - **追加機能**: EmailService抽象化（非同期対応準備）
 - **追加機能**: CSVインポート事故率低減（正規化・プレビュー・ドライラン）
 - **追加機能**: シナリオ自動実行（5分間隔、レート制限、リトライ）
-- **追加機能**: メール開封トラッキング（透過1x1 GIF）
+- **追加機能**: メール開封トラッキング（透過1x1 PNG）
 - **追加機能**: テンプレート承認ワークフロー（draft→pending→approved/rejected）
+- **追加機能**: メール分析ダッシュボード（日次・卒業年度別・シナリオ別）
 
 ## プロジェクト構造
 ```
@@ -32,14 +34,16 @@ src/ma_tool/
 │       ├── csv_import.py  # CSVインポート（プレビュー対応）
 │       ├── unsubscribe.py   # 配信停止
 │       ├── scheduler_api.py # スケジューラー監視API
-│       ├── tracking.py      # 開封トラッキング（1x1 GIF）
+│       ├── tracking.py      # 開封トラッキング（1x1 PNG）
 │       ├── templates.py     # テンプレートREST API
-│       └── views.py         # テンプレート管理UI（Jinja2）
+│       ├── views.py         # テンプレート管理UI（Jinja2）
+│       └── dashboard.py     # ダッシュボードAPI・UI
 ├── templates/         # Jinja2テンプレート
 │   ├── base.html           # ベースレイアウト
 │   ├── template_list.html  # テンプレート一覧
 │   ├── template_form.html  # 作成・編集フォーム
-│   └── template_detail.html # 詳細・承認画面
+│   ├── template_detail.html # 詳細・承認画面
+│   └── dashboard.html      # 分析ダッシュボード
 ├── models/           # SQLAlchemyモデル
 │   ├── user.py       # ユーザー（権限管理）
 │   ├── lead.py       # リード（学生）+ GraduationYearSource
@@ -59,7 +63,8 @@ src/ma_tool/
     ├── unsubscribe.py     # 配信停止サービス
     ├── scenario_engine.py  # シナリオ評価ロジック
     ├── scheduler.py        # APSchedulerラッパー・送信処理
-    └── template.py         # テンプレート管理サービス
+    ├── template.py         # テンプレート管理サービス
+    └── dashboard.py       # ダッシュボード集計サービス
 ```
 
 ## 環境変数（Replit Secrets）
@@ -86,7 +91,14 @@ src/ma_tool/
 - `GET /scheduler/status` - スケジューラー状態
 - `GET /scheduler/pending` - 送信待ちメール一覧
 - `POST /scheduler/trigger` - 手動トリガー（テスト用）
-- `GET /track/{token}/open.gif` - 開封トラッキングピクセル
+- `GET /t/open/{token}.png` - 開封トラッキングピクセル（PNG形式）
+- **ダッシュボードAPI**:
+  - `GET /api/dashboard/summary` - サマリー統計
+  - `GET /api/dashboard/daily` - 日次統計
+  - `GET /api/dashboard/graduation-year` - 卒業年度別統計
+  - `GET /api/dashboard/scenario` - シナリオ別統計
+- **ダッシュボードUI**:
+  - `GET /dashboard` - 分析ダッシュボード画面
 - **テンプレート管理API**:
   - `GET /api/templates` - テンプレート一覧
   - `POST /api/templates` - テンプレート作成

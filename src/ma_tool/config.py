@@ -51,6 +51,16 @@ class Settings(BaseSettings):
         if errors:
             raise ValueError("; ".join(errors))
     
+    def validate_secrets_for_production(self) -> None:
+        if self.is_production:
+            errors = []
+            if self.TRACKING_SECRET == "change-me-in-production":
+                errors.append("TRACKING_SECRET must be set to a secure value in production")
+            if self.UNSUBSCRIBE_SECRET == "change-me-in-production":
+                errors.append("UNSUBSCRIBE_SECRET must be set to a secure value in production")
+            if errors:
+                raise ValueError("; ".join(errors))
+    
     class Config:
         env_file = ".env"
         extra = "ignore"

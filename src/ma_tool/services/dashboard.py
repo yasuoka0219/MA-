@@ -1,8 +1,8 @@
 """Dashboard service for email analytics"""
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from typing import List, Dict, Any, Optional
 from zoneinfo import ZoneInfo
-from sqlalchemy import func, case, and_, select
+from sqlalchemy import func, case, and_, select, cast, Date
 from sqlalchemy.orm import Session
 
 from src.ma_tool.models.send_log import SendLog, SendStatus
@@ -19,11 +19,13 @@ def get_daily_stats(
     days: int = 7
 ) -> List[Dict[str, Any]]:
     """
-    Get daily email statistics.
-    Returns: sent_count, delivered_count, failed_count, opened_count, open_rate
+    Get daily email statistics for emails with status = SENT.
+    Returns: sent_count, failed_count, opened_count, open_rate
+    Uses JST timezone for date boundaries.
     """
+    now_jst = datetime.now(JST)
     if end_date is None:
-        end_date = datetime.now(JST).date()
+        end_date = now_jst.date()
     if start_date is None:
         start_date = end_date - timedelta(days=days - 1)
     
@@ -33,32 +35,39 @@ def get_daily_stats(
     while current <= end_date:
         next_day = current + timedelta(days=1)
         
-        day_start = datetime.combine(current, datetime.min.time()).replace(tzinfo=JST)
-        day_end = datetime.combine(next_day, datetime.min.time()).replace(tzinfo=JST)
+        day_start = datetime.combine(current, time.min).replace(tzinfo=JST)
+        day_end = datetime.combine(next_day, time.min).replace(tzinfo=JST)
         
-        stats = db.execute(
+        sent_query = db.execute(
             select(
-                func.count(SendLog.id).label("total"),
-                func.sum(case((SendLog.status == SendStatus.SENT, 1), else_=0)).label("sent"),
-                func.sum(case((SendLog.status == SendStatus.FAILED, 1), else_=0)).label("failed"),
+                func.count(SendLog.id).label("sent"),
                 func.sum(case((SendLog.opened_at.isnot(None), 1), else_=0)).label("opened")
             ).where(
                 and_(
+                    SendLog.status == SendStatus.SENT,
                     SendLog.sent_at >= day_start,
                     SendLog.sent_at < day_end
                 )
             )
         ).first()
         
-        total = stats.total or 0
-        sent = stats.sent or 0
-        failed = stats.failed or 0
-        opened = stats.opened or 0
+        failed_query = db.execute(
+            select(func.count(SendLog.id)).where(
+                and_(
+                    SendLog.status == SendStatus.FAILED,
+                    SendLog.created_at >= day_start,
+                    SendLog.created_at < day_end
+                )
+            )
+        ).scalar() or 0
+        
+        sent = sent_query.sent or 0
+        opened = sent_query.opened or 0
+        failed = failed_query
         open_rate = (opened / sent * 100) if sent > 0 else 0.0
         
         results.append({
             "date": current.isoformat(),
-            "total": total,
             "sent": sent,
             "failed": failed,
             "opened": opened,
