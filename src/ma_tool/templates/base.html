@@ -358,7 +358,8 @@
     </header>
     
     <nav>
-        <a href="/templates" class="{% if request.url.path == '/templates' %}active{% endif %}">Templates</a>
+        <a href="/dashboard" class="{% if request.url.path == '/dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="/templates" class="{% if '/templates' in request.url.path and request.url.path != '/templates/new' %}active{% endif %}">Templates</a>
         {% if can_edit %}
         <a href="/templates/new" class="{% if request.url.path == '/templates/new' %}active{% endif %}">New Template</a>
         {% endif %}
