@@ -10,8 +10,16 @@ I prefer iterative development with clear, modular components. Please ensure cod
 The MA tool is built upon a modern web stack using FastAPI for the API, PostgreSQL for the database, SQLAlchemy 2.x with Alembic for ORM and migrations, APScheduler for background tasks, and Jinja2 for server-side rendered UI templates.
 
 **UI/UX Decisions:**
-- **Template Management UI:** Provides intuitive interfaces for creating, editing, and managing email templates with a clear approval workflow.
-- **Dashboard UI:** Offers analytical insights into email campaigns with daily, graduation year, and scenario-specific statistics.
+- **Admin UI (Bootstrap 5 + HTMX):** Comprehensive web-based admin interface with session authentication at `/ui/`.
+  - **Session Authentication:** Email-based login requiring pre-registered users in the database. Uses `SESSION_SECRET_KEY` environment variable.
+  - **Leads Management:** Search, filter by graduation year, view lead details, and manage LINE identity links at `/ui/leads`.
+  - **LINE Identity Management:** View all LINE identities, link/unlink leads, with full audit logging at `/ui/line-identities`.
+  - **Template Management:** Create, edit, clone templates with LINE support (Flex Message JSON), submit for approval, approve/reject workflows, and test send functionality (dev/staging only) at `/ui/templates`.
+  - **Scenario Management:** Create and manage scenarios with target preview showing eligible leads count at `/ui/scenarios`.
+  - **Send Logs:** View all message delivery logs with multi-filter support (status, channel, scenario, graduation year) at `/ui/send-logs`.
+  - **Environment Banner:** Shows current environment (DEV/STAGING/PRODUCTION) for safety awareness.
+  - **Toast Notifications:** Real-time feedback via HTMX triggers.
+- **Legacy Dashboard UI:** Analytical insights into email campaigns with daily, graduation year, and scenario-specific statistics.
 - **CSV Import Workflow:** Implements a two-step preview-and-confirm process to prevent data import errors, supported by automatic column mapping and value normalization for various Japanese and English data formats.
 
 **Technical Implementations:**
