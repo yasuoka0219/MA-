@@ -137,7 +137,14 @@ async def template_create(
         try:
             flex_json = json.loads(flex_message_json)
         except json.JSONDecodeError:
-            flex_json = None
+            response = Response(
+                content="<div class='alert alert-danger'>Flex Message JSONの形式が不正です</div>",
+                media_type="text/html"
+            )
+            response.headers["HX-Trigger"] = json.dumps({
+                "showToast": {"type": "danger", "message": "Flex Message JSONの形式が不正です"}
+            })
+            return response
     
     template = Template(
         name=name,
@@ -227,7 +234,14 @@ async def template_update(
         try:
             flex_json = json.loads(flex_message_json)
         except json.JSONDecodeError:
-            flex_json = None
+            response = Response(
+                content="<div class='alert alert-danger'>Flex Message JSONの形式が不正です</div>",
+                media_type="text/html"
+            )
+            response.headers["HX-Trigger"] = json.dumps({
+                "showToast": {"type": "danger", "message": "Flex Message JSONの形式が不正です"}
+            })
+            return response
     
     template.name = name
     template.channel_type = ChannelType(channel_type)
