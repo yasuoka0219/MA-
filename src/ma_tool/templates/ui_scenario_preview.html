@@ -1,0 +1,31 @@
+<div class="alert alert-info">
+    <strong>対象リード数: {{ total_count }}件</strong>
+</div>
+
+{% if leads %}
+<div class="table-responsive">
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>メール</th>
+                <th>名前</th>
+                <th>卒業年</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lead in leads %}
+            <tr>
+                <td><a href="/ui/leads/{{ lead.id }}" target="_blank">{{ lead.email }}</a></td>
+                <td>{{ lead.name or '-' }}</td>
+                <td>{{ lead.graduation_year or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if total_count > 20 %}
+<p class="text-muted small">上位20件のみ表示</p>
+{% endif %}
+{% else %}
+<p class="text-muted">対象リードがいません</p>
+{% endif %}

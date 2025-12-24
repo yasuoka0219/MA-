@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     LINE_CHANNEL_SECRET: str = ""
     LINE_TEST_USER_ID: str = ""
     
+    SESSION_SECRET_KEY: str = ""
+    
     @field_validator("APP_ENV")
     @classmethod
     def validate_app_env(cls, v: str) -> str:

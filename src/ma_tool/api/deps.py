@@ -1,6 +1,8 @@
 """API dependencies - authentication and database session"""
-from typing import Annotated
-from fastapi import Depends, HTTPException, Header
+from typing import Annotated, Optional
+from functools import wraps
+from fastapi import Depends, HTTPException, Header, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -20,6 +22,31 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found or inactive")
     
     return user
+
+
+def get_session_user(request: Request, db: Session = Depends(get_db)) -> Optional[User]:
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return None
+    user = db.execute(
+        select(User).where(User.id == user_id, User.is_active == True)
+    ).scalar_one_or_none()
+    return user
+
+
+def require_session_login(request: Request, db: Session = Depends(get_db)) -> User:
+    user = get_session_user(request, db)
+    if not user:
+        raise HTTPException(status_code=302, headers={"Location": "/ui/login"})
+    return user
+
+
+def require_role(*roles: UserRole):
+    def dependency(user: User = Depends(require_session_login)) -> User:
+        if user.role not in roles:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return user
+    return dependency
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:

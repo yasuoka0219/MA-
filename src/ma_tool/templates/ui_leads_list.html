@@ -1,0 +1,123 @@
+{% extends "ui_base.html" %}
+{% block title %}リード一覧 - MA Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people me-2"></i>リード一覧</h2>
+    <span class="badge bg-secondary">{{ total_count }}件</span>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">検索（メール/学校名/名前）</label>
+                <input type="text" name="search" class="form-control" value="{{ search }}" placeholder="キーワードを入力">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">卒業年度</label>
+                <select name="graduation_year" class="form-select">
+                    <option value="">すべて</option>
+                    {% for year in graduation_years %}
+                    <option value="{{ year }}" {% if graduation_year == year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">興味関心</label>
+                <input type="text" name="interest" class="form-control" value="{{ interest }}" placeholder="例: 情報工学">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> 検索
+                </button>
+                <a href="/ui/leads" class="btn btn-outline-secondary">クリア</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>メール</th>
+                    <th>名前</th>
+                    <th>学校名</th>
+                    <th>卒業年</th>
+                    <th>同意</th>
+                    <th>配信停止</th>
+                    <th>LINE</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr>
+                    <td><a href="/ui/leads/{{ lead.id }}">{{ lead.email }}</a></td>
+                    <td>{{ lead.name or '-' }}</td>
+                    <td>{{ lead.school_name or '-' }}</td>
+                    <td>{{ lead.graduation_year or '-' }}</td>
+                    <td>
+                        {% if lead.consent %}
+                        <span class="badge bg-success">同意済</span>
+                        {% else %}
+                        <span class="badge bg-secondary">未同意</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if lead.unsubscribed %}
+                        <span class="badge bg-danger">停止中</span>
+                        {% else %}
+                        <span class="badge bg-success">配信中</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if lead.id in line_identities %}
+                            {% set li = line_identities[lead.id] %}
+                            {% if li.status.value == 'blocked' %}
+                            <span class="badge bg-danger">ブロック</span>
+                            {% elif li.status.value == 'linked' %}
+                            <span class="badge bg-success">紐付済</span>
+                            {% else %}
+                            <span class="badge bg-secondary">未紐付</span>
+                            {% endif %}
+                        {% else %}
+                        <span class="badge bg-light text-dark">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/ui/leads/{{ lead.id }}" class="btn btn-sm btn-outline-primary">詳細</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">リードが見つかりません</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if total_count > per_page %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page - 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}">前へ</a>
+        </li>
+        {% endif %}
+        <li class="page-item disabled">
+            <span class="page-link">{{ page }} / {{ (total_count / per_page)|int + 1 }}</span>
+        </li>
+        {% if page * per_page < total_count %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page + 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}">次へ</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

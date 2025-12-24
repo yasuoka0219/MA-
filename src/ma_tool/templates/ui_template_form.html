@@ -1,0 +1,84 @@
+{% extends "ui_base.html" %}
+{% block title %}{% if is_new %}新規テンプレート{% else %}テンプレート編集{% endif %} - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/templates">テンプレート一覧</a></li>
+        <li class="breadcrumb-item active">{% if is_new %}新規作成{% else %}{{ template.name }}{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">{% if is_new %}新規テンプレート{% else %}テンプレート編集{% endif %}</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{% if is_new %}/ui/templates/new{% else %}/ui/templates/{{ template.id }}/edit{% endif %}">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">テンプレート名 <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" value="{{ template.name if template else '' }}" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">チャネル <span class="text-danger">*</span></label>
+                        <select name="channel_type" class="form-select" id="channel-select" onchange="toggleChannelFields()">
+                            <option value="email" {% if template and template.channel_type.value == 'email' %}selected{% endif %}>Email</option>
+                            <option value="line" {% if template and template.channel_type.value == 'line' %}selected{% elif is_new %}selected{% endif %}>LINE</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="email-fields" style="display: none;">
+                <div class="mb-3">
+                    <label class="form-label">件名</label>
+                    <input type="text" name="subject" class="form-control" value="{{ template.subject if template else '' }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">本文</label>
+                    <textarea name="body" class="form-control" rows="10">{{ template.body if template else '' }}</textarea>
+                </div>
+            </div>
+
+            <div id="line-fields">
+                <div class="mb-3">
+                    <label class="form-label">メッセージテキスト</label>
+                    <textarea name="message_text" class="form-control" rows="5" placeholder="LINEに送信するテキストメッセージ">{{ template.message_text if template else '' }}</textarea>
+                    <div class="form-text">
+                        利用可能な変数: <code>{name}</code>, <code>{school_name}</code>, <code>{graduation_year}</code>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Flex Message JSON（任意）</label>
+                    <textarea name="flex_message_json" class="form-control font-monospace" rows="10" placeholder='{"type": "bubble", "body": {...}}'>{{ template.flex_message_json if template else '' }}</textarea>
+                    <div class="form-text">
+                        LINE Flex Messageのフォーマットに従ってください。空の場合はテキストメッセージのみ送信されます。
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check"></i> 保存
+                </button>
+                <a href="{% if is_new %}/ui/templates{% else %}/ui/templates/{{ template.id }}{% endif %}" class="btn btn-outline-secondary">
+                    キャンセル
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleChannelFields() {
+    const channel = document.getElementById('channel-select').value;
+    document.getElementById('email-fields').style.display = channel === 'email' ? 'block' : 'none';
+    document.getElementById('line-fields').style.display = channel === 'line' ? 'block' : 'none';
+}
+toggleChannelFields();
+</script>
+{% endblock %}

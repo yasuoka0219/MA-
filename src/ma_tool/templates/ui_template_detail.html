@@ -1,0 +1,169 @@
+{% extends "ui_base.html" %}
+{% block title %}{{ template.name }} - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/templates">テンプレート一覧</a></li>
+        <li class="breadcrumb-item active">{{ template.name }}</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ template.name }}</h5>
+                <span id="status-badge">
+                    {% if template.status.value == 'draft' %}
+                    <span class="badge bg-secondary fs-6">下書き</span>
+                    {% elif template.status.value == 'pending' %}
+                    <span class="badge bg-warning fs-6">承認待ち</span>
+                    {% elif template.status.value == 'approved' %}
+                    <span class="badge bg-success fs-6">承認済み</span>
+                    {% elif template.status.value == 'rejected' %}
+                    <span class="badge bg-danger fs-6">却下</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>チャネル:</strong>
+                    {% if template.channel_type.value == 'line' %}
+                    <span class="badge bg-success"><i class="bi bi-chat-dots"></i> LINE</span>
+                    {% else %}
+                    <span class="badge bg-primary"><i class="bi bi-envelope"></i> Email</span>
+                    {% endif %}
+                </div>
+
+                {% if template.channel_type.value == 'email' %}
+                <div class="mb-3">
+                    <strong>件名:</strong>
+                    <p class="mb-0">{{ template.subject or '-' }}</p>
+                </div>
+                <div class="mb-3">
+                    <strong>本文:</strong>
+                    <pre class="bg-light p-3 rounded" style="white-space: pre-wrap;">{{ template.body or '-' }}</pre>
+                </div>
+                {% else %}
+                <div class="mb-3">
+                    <strong>メッセージテキスト:</strong>
+                    <pre class="bg-light p-3 rounded" style="white-space: pre-wrap;">{{ template.message_text or '-' }}</pre>
+                </div>
+                {% if template.flex_message_json %}
+                <div class="mb-3">
+                    <strong>Flex Message JSON:</strong>
+                    <pre class="bg-dark text-light p-3 rounded" style="font-size: 0.85rem; max-height: 300px; overflow: auto;">{{ template.flex_message_json }}</pre>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                {% if template.status.value == 'rejected' and template.rejected_reason %}
+                <div class="alert alert-danger">
+                    <strong>却下理由:</strong> {{ template.rejected_reason }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">操作</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if can_edit %}
+                    <a href="/ui/templates/{{ template.id }}/edit" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil"></i> 編集
+                    </a>
+                    {% endif %}
+
+                    {% if can_submit %}
+                    <button class="btn btn-warning"
+                            hx-post="/ui/templates/{{ template.id }}/submit"
+                            hx-target="#status-badge"
+                            hx-swap="innerHTML">
+                        <i class="bi bi-send"></i> 承認申請
+                    </button>
+                    {% endif %}
+
+                    {% if can_approve %}
+                    <button class="btn btn-success"
+                            hx-post="/ui/templates/{{ template.id }}/approve"
+                            hx-target="#status-badge"
+                            hx-swap="innerHTML">
+                        <i class="bi bi-check-circle"></i> 承認
+                    </button>
+                    <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                        <i class="bi bi-x-circle"></i> 却下
+                    </button>
+                    {% endif %}
+
+                    <form action="/ui/templates/{{ template.id }}/clone" method="POST" class="d-grid">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-copy"></i> 複製して新規作成
+                        </button>
+                    </form>
+
+                    {% if can_test_send %}
+                    <hr>
+                    <button class="btn btn-info"
+                            hx-post="/ui/templates/{{ template.id }}/test-send"
+                            hx-target="#test-result"
+                            hx-swap="innerHTML">
+                        <i class="bi bi-send-check"></i> テスト送信 (LINE)
+                    </button>
+                    <div id="test-result" class="mt-2"></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">情報</h6>
+            </div>
+            <div class="card-body">
+                <small class="text-muted">
+                    作成日時: {{ template.created_at.strftime('%Y-%m-%d %H:%M') if template.created_at else '-' }}<br>
+                    更新日時: {{ template.updated_at.strftime('%Y-%m-%d %H:%M') if template.updated_at else '-' }}<br>
+                    {% if template.approved_at %}
+                    承認日時: {{ template.approved_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="/ui/templates" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> 一覧に戻る
+    </a>
+</div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form hx-post="/ui/templates/{{ template.id }}/reject" hx-target="#status-badge" hx-swap="innerHTML">
+                <div class="modal-header">
+                    <h5 class="modal-title">却下理由</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">理由を入力してください</label>
+                        <textarea name="reason" class="form-control" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-danger" data-bs-dismiss="modal">却下する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

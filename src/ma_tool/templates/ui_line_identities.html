@@ -1,0 +1,110 @@
+{% extends "ui_base.html" %}
+{% block title %}LINE紐付け管理 - MA Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-chat-dots me-2"></i>LINE紐付け管理</h2>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <a href="/ui/line-identities" class="card text-decoration-none {% if not status_filter %}border-primary{% endif %}">
+            <div class="card-body text-center">
+                <h3 class="mb-0">{{ status_counts.all }}</h3>
+                <small class="text-muted">すべて</small>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="/ui/line-identities?status_filter=unlinked" class="card text-decoration-none {% if status_filter == 'unlinked' %}border-warning{% endif %}">
+            <div class="card-body text-center">
+                <h3 class="mb-0 text-warning">{{ status_counts.unlinked }}</h3>
+                <small class="text-muted">未紐付け</small>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="/ui/line-identities?status_filter=linked" class="card text-decoration-none {% if status_filter == 'linked' %}border-success{% endif %}">
+            <div class="card-body text-center">
+                <h3 class="mb-0 text-success">{{ status_counts.linked }}</h3>
+                <small class="text-muted">紐付け済</small>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="/ui/line-identities?status_filter=blocked" class="card text-decoration-none {% if status_filter == 'blocked' %}border-danger{% endif %}">
+            <div class="card-body text-center">
+                <h3 class="mb-0 text-danger">{{ status_counts.blocked }}</h3>
+                <small class="text-muted">ブロック</small>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>LINE User ID</th>
+                    <th>ステータス</th>
+                    <th>紐付けリード</th>
+                    <th>フォロー日時</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for identity in identities %}
+                <tr id="row-{{ identity.id }}">
+                    <td><code>{{ identity.line_user_id[:15] }}...</code></td>
+                    <td id="status-{{ identity.id }}">
+                        {% if identity.status.value == 'linked' %}
+                        <span class="badge bg-success">紐付け済</span>
+                        {% if identity.lead_id and identity.lead_id in leads %}
+                        <small class="text-muted ms-2">{{ leads[identity.lead_id].email }}</small>
+                        {% endif %}
+                        {% elif identity.status.value == 'blocked' %}
+                        <span class="badge bg-danger">ブロック</span>
+                        {% else %}
+                        <span class="badge bg-secondary">未紐付け</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if identity.lead_id and identity.lead_id in leads %}
+                        <a href="/ui/leads/{{ identity.lead_id }}">{{ leads[identity.lead_id].name or leads[identity.lead_id].email }}</a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>{{ identity.created_at.strftime('%Y-%m-%d %H:%M') if identity.created_at else '-' }}</td>
+                    <td id="actions-{{ identity.id }}">
+                        {% if identity.status.value == 'unlinked' %}
+                        <button class="btn btn-sm btn-primary"
+                                hx-get="/ui/line-identities/{{ identity.id }}/link-form"
+                                hx-target="#modal-container"
+                                hx-swap="innerHTML">
+                            <i class="bi bi-link"></i> 紐付け
+                        </button>
+                        {% elif identity.status.value == 'linked' and can_unlink %}
+                        <button class="btn btn-sm btn-outline-danger"
+                                hx-post="/ui/line-identities/{{ identity.id }}/unlink"
+                                hx-target="#status-{{ identity.id }}"
+                                hx-swap="innerHTML"
+                                hx-confirm="紐付けを解除しますか？">
+                            <i class="bi bi-x-circle"></i> 解除
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">データがありません</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modal-container"></div>
+{% endblock %}

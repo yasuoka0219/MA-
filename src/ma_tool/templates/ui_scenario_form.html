@@ -1,0 +1,123 @@
+{% extends "ui_base.html" %}
+{% block title %}{% if is_new %}新規シナリオ{% else %}{{ scenario.name }}{% endif %} - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/scenarios">シナリオ一覧</a></li>
+        <li class="breadcrumb-item active">{% if is_new %}新規作成{% else %}{{ scenario.name }}{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">{% if is_new %}新規シナリオ{% else %}シナリオ編集{% endif %}</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{% if is_new %}/ui/scenarios/new{% else %}/ui/scenarios/{{ scenario.id }}{% endif %}">
+                    <div class="mb-3">
+                        <label class="form-label">シナリオ名 <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" value="{{ scenario.name if scenario else '' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">テンプレート <span class="text-danger">*</span></label>
+                        <select name="template_id" class="form-select" required>
+                            <option value="">-- 選択してください --</option>
+                            {% for t in approved_templates %}
+                            <option value="{{ t.id }}" {% if scenario and scenario.template_id == t.id %}selected{% endif %}>
+                                {{ t.name }}
+                                {% if t.channel_type.value == 'line' %}(LINE){% else %}(Email){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">承認済みテンプレートのみ選択可能</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">トリガーイベント <span class="text-danger">*</span></label>
+                        <input type="text" name="trigger_event_type" class="form-control" 
+                               value="{{ scenario.trigger_event_type if scenario else '' }}"
+                               list="event-types" required placeholder="例: signup, open_campus_register">
+                        <datalist id="event-types">
+                            {% for et in event_types %}
+                            <option value="{{ et }}">
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">遅延日数</label>
+                                <input type="number" name="delay_days" class="form-control" 
+                                       value="{{ scenario.delay_days if scenario else 0 }}" min="0">
+                                <div class="form-text">イベント発生から何日後に送信</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">送信間隔（日）</label>
+                                <input type="number" name="frequency_days" class="form-control" 
+                                       value="{{ scenario.frequency_days if scenario else 7 }}" min="1">
+                                <div class="form-text">同一リードへの再送信間隔</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">卒業年度ルール（JSON）</label>
+                        <textarea name="graduation_year_rule" class="form-control font-monospace" rows="3" 
+                                  placeholder='例: {"min": 2025, "max": 2026} または {"exact": 2025}'>{{ scenario.graduation_year_rule if scenario else '' }}</textarea>
+                        <div class="form-text">
+                            対象卒業年度を指定。空欄の場合は全年度対象。
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_enabled" class="form-check-input" id="is_enabled"
+                                   {% if scenario and scenario.is_enabled %}checked{% endif %} value="true">
+                            <label class="form-check-label" for="is_enabled">有効化</label>
+                        </div>
+                        {% if is_production %}
+                        <div class="form-text text-warning">
+                            <i class="bi bi-exclamation-triangle"></i> 本番環境では有効化前にプレビュー確認を推奨
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check"></i> 保存
+                        </button>
+                        <a href="/ui/scenarios" class="btn btn-outline-secondary">キャンセル</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        {% if not is_new %}
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">対象プレビュー</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">このシナリオ条件で現在対象となるリードを確認できます。</p>
+                <button class="btn btn-outline-info w-100"
+                        hx-post="/ui/scenarios/{{ scenario.id }}/preview"
+                        hx-target="#preview-result"
+                        hx-swap="innerHTML">
+                    <i class="bi bi-eye"></i> プレビュー
+                </button>
+                <div id="preview-result" class="mt-3"></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

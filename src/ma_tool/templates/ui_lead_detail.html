@@ -1,0 +1,121 @@
+{% extends "ui_base.html" %}
+{% block title %}リード詳細 - {{ lead.email }} - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/leads">リード一覧</a></li>
+        <li class="breadcrumb-item active">{{ lead.email }}</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person me-2"></i>基本情報</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 200px;">メールアドレス</th>
+                        <td>{{ lead.email }}</td>
+                    </tr>
+                    <tr>
+                        <th>名前</th>
+                        <td>{{ lead.name or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>学校名</th>
+                        <td>{{ lead.school_name or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>卒業年度</th>
+                        <td>{{ lead.graduation_year or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>学年</th>
+                        <td>{{ lead.grade_label or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>興味関心</th>
+                        <td>{{ lead.interest or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>作成日時</th>
+                        <td>{{ lead.created_at.strftime('%Y-%m-%d %H:%M') if lead.created_at else '-' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-shield-check me-2"></i>ステータス</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>同意状況</strong><br>
+                    {% if lead.consent %}
+                    <span class="badge bg-success fs-6">同意済み</span>
+                    {% else %}
+                    <span class="badge bg-secondary fs-6">未同意</span>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <strong>配信状況</strong><br>
+                    {% if lead.unsubscribed %}
+                    <span class="badge bg-danger fs-6">配信停止中</span>
+                    <small class="d-block text-muted mt-1">
+                        {{ lead.unsubscribed_at.strftime('%Y-%m-%d %H:%M') if lead.unsubscribed_at else '' }}
+                    </small>
+                    {% else %}
+                    <span class="badge bg-success fs-6">配信中</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <strong>LINEブロック</strong><br>
+                    {% if lead.line_blocked %}
+                    <span class="badge bg-danger fs-6">ブロック中</span>
+                    {% else %}
+                    <span class="badge bg-success fs-6">-</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-chat-dots me-2"></i>LINE連携</h5>
+            </div>
+            <div class="card-body">
+                {% if line_identity %}
+                <p class="mb-2">
+                    <strong>ステータス:</strong>
+                    {% if line_identity.status.value == 'linked' %}
+                    <span class="badge bg-success">紐付け済</span>
+                    {% elif line_identity.status.value == 'blocked' %}
+                    <span class="badge bg-danger">ブロック</span>
+                    {% else %}
+                    <span class="badge bg-secondary">未紐付け</span>
+                    {% endif %}
+                </p>
+                <p class="mb-0 small text-muted">
+                    LINE User ID: {{ line_identity.line_user_id[:10] }}...
+                </p>
+                {% else %}
+                <p class="text-muted mb-0">LINE連携なし</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="/ui/leads" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> 一覧に戻る
+    </a>
+</div>
+{% endblock %}

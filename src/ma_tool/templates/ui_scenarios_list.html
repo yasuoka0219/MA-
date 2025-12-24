@@ -1,0 +1,80 @@
+{% extends "ui_base.html" %}
+{% block title %}シナリオ一覧 - MA Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-diagram-3 me-2"></i>シナリオ一覧</h2>
+    {% if can_edit %}
+    <a href="/ui/scenarios/new" class="btn btn-primary">
+        <i class="bi bi-plus"></i> 新規作成
+    </a>
+    {% endif %}
+</div>
+
+<div class="mb-4">
+    <div class="btn-group" role="group">
+        <a href="/ui/scenarios" class="btn btn-outline-secondary {% if not enabled_filter %}active{% endif %}">すべて</a>
+        <a href="/ui/scenarios?enabled_filter=enabled" class="btn btn-outline-secondary {% if enabled_filter == 'enabled' %}active{% endif %}">有効のみ</a>
+        <a href="/ui/scenarios?enabled_filter=disabled" class="btn btn-outline-secondary {% if enabled_filter == 'disabled' %}active{% endif %}">無効のみ</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>名前</th>
+                    <th>テンプレート</th>
+                    <th>トリガー</th>
+                    <th>遅延</th>
+                    <th>頻度</th>
+                    <th>ステータス</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scenario in scenarios %}
+                <tr>
+                    <td><a href="/ui/scenarios/{{ scenario.id }}">{{ scenario.name }}</a></td>
+                    <td>
+                        {% if scenario.template_id in templates %}
+                        <a href="/ui/templates/{{ scenario.template_id }}">{{ templates[scenario.template_id].name }}</a>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td><code>{{ scenario.trigger_event_type }}</code></td>
+                    <td>{{ scenario.delay_days }}日</td>
+                    <td>{{ scenario.frequency_days }}日</td>
+                    <td id="status-{{ scenario.id }}">
+                        {% if scenario.is_enabled %}
+                        <span class="badge bg-success">有効</span>
+                        {% else %}
+                        <span class="badge bg-secondary">無効</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="/ui/scenarios/{{ scenario.id }}" class="btn btn-outline-primary">詳細</a>
+                            {% if can_edit %}
+                            <button class="btn btn-outline-secondary"
+                                    hx-post="/ui/scenarios/{{ scenario.id }}/toggle"
+                                    hx-target="#status-{{ scenario.id }}"
+                                    hx-swap="innerHTML">
+                                切替
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">シナリオがありません</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

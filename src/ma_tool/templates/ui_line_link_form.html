@@ -1,0 +1,32 @@
+<div class="modal fade show" style="display: block; background: rgba(0,0,0,0.5);" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">リードに紐付け</h5>
+                <button type="button" class="btn-close" onclick="document.getElementById('modal-container').innerHTML=''"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    LINE User ID: <code>{{ identity.line_user_id[:20] }}...</code>
+                </p>
+                <form hx-post="/ui/line-identities/{{ identity.id }}/search-lead"
+                      hx-target="#search-results"
+                      hx-swap="innerHTML">
+                    <div class="mb-3">
+                        <label class="form-label">メールアドレスで検索</label>
+                        <div class="input-group">
+                            <input type="email" name="email" class="form-control" placeholder="example@email.com" required>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-search"></i> 検索
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                <div id="search-results"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-container').innerHTML=''">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>

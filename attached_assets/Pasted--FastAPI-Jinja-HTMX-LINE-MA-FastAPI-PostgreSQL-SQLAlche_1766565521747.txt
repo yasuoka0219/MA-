@@ -1,0 +1,113 @@
+# 依頼：FastAPIに管理画面（Jinja+HTMX）を追加して、LINE配信MAを運用開始できる状態にする
+前提：
+既に FastAPI + PostgreSQL + SQLAlchemy のAPI基盤がある
+LINE Messaging API対応（LineProvider, webhook, line_identities等）が実装済み
+フロントはまだ無い
+方針：
+UIはJinja2 + HTMXで実装（Reactは使わない）
+画面は「運用で必要最低限」に絞る
+権限（admin/editor/approver/viewer）に応じて操作可否を制御
+APP_ENVを画面に常時表示し、dev/stagingは“本番送信されない”注意を出す
+テーブル/フォーム中心のシンプルUIでOK（Bootstrap等の軽量CSSは可）
+## 1) セッション認証（MVP）
+/login（emailでログインする簡易方式でOK）
+usersテーブルに存在するemailのみログイン可
+セッションに user_id / role を保持
+/logout
+認可デコレータ（role required）を用意し、画面ごとに適用
+## 2) 画面一覧（必須）
+### (A) リード
+GET /ui/leads：一覧（検索：email, school_name, graduation_year, interest）
+表示：email, name, school_name, graduation_year, consent, unsubscribed, line_status(未紐付け/紐付け済/ブロック)
+GET /ui/leads/{id}：詳細
+閲覧のみでOK（手動修正は後回し可）
+### (B) LINE紐付け（最重要）
+GET /ui/line-identities：
+unlinked（未紐付け）一覧を表示
+“メール検索→該当leadにリンク”フォーム
+誤リンク時の unlink ボタン（adminのみ）
+POST /ui/line-identities/{id}/link：
+email入力→leadsを検索→lead_idをセット→status=linked→監査ログ
+POST /ui/line-identities/{id}/unlink：
+lead_id=null→status=unlinked→監査ログ
+### (C) テンプレ（LINE）＋承認
+GET /ui/templates：一覧（statusフィルタ）
+GET /ui/templates/new：作成（editor/admin）
+fields: name, channel_type='line', message_text, flex_message_json(任意)
+GET /ui/templates/{id}：詳細
+status表示
+submit（draft→pending）
+approve/reject（approver/admin）
+approvedは編集不可、cloneで新規作成
+“テスト送信”ボタン：
+dev/stagingのみ表示
+LINE_TEST_USER_ID宛に送る（送信結果を画面に表示）
+audit_logsに記録
+### (D) シナリオ
+GET /ui/scenarios：一覧（enabled/trigger_event_type等）
+GET /ui/scenarios/new：作成（editor/admin）
+fields: name, template（approvedのみ選択可）, trigger_event_type, delay_days, frequency_days, graduation_year_rule(JSON), is_enabled
+GET /ui/scenarios/{id}：編集
+“対象人数プレビュー”ボタン：
+シナリオ条件で今対象になるlead数を返す（上位20件も表示）
+本番(APP_ENV=prod)でis_enabledをONにする前に、プレビュー実行済みフラグを必須にする（事故防止）
+### (E) 配信ログ
+GET /ui/send-logs：一覧（status/failed_reason/期間でフィルタ）
+scheduled/sent/failed/blocked
+provider_message_id, error_message, attempt_count, opened_at(あれば)
+## 3) HTMX適用箇所（MVPで便利）
+一覧のフィルタ検索（フォーム送信で部分更新）
+line-identities の link/unlink（行だけ更新）
+templates の承認ボタン（状態ラベルだけ更新）
+scenario 対象プレビュー（モーダル or 下部に表示）
+## 4) 監査ログ（必須）
+link/unlink, template submit/approve/reject/clone, scenario enable/disable, test send を必ず audit_logs に残す
+actor_user_id と actor_role_snapshot を記録
+## 5) ディレクトリ構成（例）
+app/
+main.py
+settings.py
+db.py
+models/
+services/
+providers/
+routers/
+api_*.py
+ui_*.py
+templates/
+base.html
+login.html
+leads_list.html
+lead_detail.html
+line_identities.html
+templates_list.html
+template_detail.html
+template_form.html
+scenarios_list.html
+scenario_form.html
+send_logs.html
+static/
+app.css
+## 出力
+追加/変更ファイル一覧
+各画面のURLと権限制御表
+起動・ログイン・動作確認手順
+既存APIを壊さないこと（UI追加のみ）
+17:37
+【追加の品質要件】
+1) セッション管理
+セッション管理には starlette.middleware.sessions.SessionMiddleware を使用してください。
+SESSION_SECRET_KEY を環境変数から読み込み、未設定なら起動時にエラーにしてください。
+2) UIフレームワーク
+base.html では Bootstrap 5 を CDN 経由で読み込み、シンプルで清潔感のある管理画面にしてください。
+3) 操作フィードバック
+HTMXによる更新（link/unlink、approve/reject、save等）の成功/失敗を、
+  画面上部のアラートまたはトーストで表示する仕組みを実装してください。
+可能なら HX-Trigger を使って「保存しました」「エラーです」を表示してください。
+
+
+
+
+
+
+
