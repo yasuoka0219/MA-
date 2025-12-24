@@ -7,5 +7,6 @@ from src.ma_tool.models.template import Template
 from src.ma_tool.models.scenario import Scenario
 from src.ma_tool.models.send_log import SendLog
 from src.ma_tool.models.audit_log import AuditLog
+from src.ma_tool.models.line_identity import LineIdentity
 
-__all__ = ["Base", "User", "Lead", "Event", "Template", "Scenario", "SendLog", "AuditLog"]
+__all__ = ["Base", "User", "Lead", "Event", "Template", "Scenario", "SendLog", "AuditLog", "LineIdentity"]

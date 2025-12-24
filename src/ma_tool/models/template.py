@@ -2,7 +2,7 @@
 import enum
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Enum, func
+from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Enum, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.ma_tool.models.base import Base
@@ -15,13 +15,25 @@ class TemplateStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class ChannelType(str, enum.Enum):
+    EMAIL = "email"
+    LINE = "line"
+
+
 class Template(Base):
     __tablename__ = "templates"
     
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    subject: Mapped[str] = mapped_column(String(500), nullable=False)
-    body_html: Mapped[str] = mapped_column(Text, nullable=False)
+    channel_type: Mapped[ChannelType] = mapped_column(
+        Enum(ChannelType),
+        nullable=False,
+        default=ChannelType.EMAIL
+    )
+    subject: Mapped[str] = mapped_column(String(500), nullable=True)
+    body_html: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    message_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    flex_message_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     status: Mapped[TemplateStatus] = mapped_column(
         Enum(TemplateStatus),
         nullable=False,

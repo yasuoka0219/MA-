@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     SCHEDULER_ENABLED: bool = True
     RATE_LIMIT_PER_MINUTE: int = 60
     
+    LINE_CHANNEL_ACCESS_TOKEN: str = ""
+    LINE_CHANNEL_SECRET: str = ""
+    LINE_TEST_USER_ID: str = ""
+    
     @field_validator("APP_ENV")
     @classmethod
     def validate_app_env(cls, v: str) -> str:
@@ -60,6 +64,17 @@ class Settings(BaseSettings):
                 errors.append("UNSUBSCRIBE_SECRET must be set to a secure value in production")
             if errors:
                 raise ValueError("; ".join(errors))
+    
+    def validate_required_for_line(self) -> None:
+        errors = []
+        if not self.LINE_CHANNEL_ACCESS_TOKEN:
+            errors.append("LINE_CHANNEL_ACCESS_TOKEN is required for LINE messaging")
+        if not self.LINE_CHANNEL_SECRET:
+            errors.append("LINE_CHANNEL_SECRET is required for LINE messaging")
+        if not self.is_production and not self.LINE_TEST_USER_ID:
+            errors.append("LINE_TEST_USER_ID is required in dev/staging environments")
+        if errors:
+            raise ValueError("; ".join(errors))
     
     class Config:
         env_file = ".env"

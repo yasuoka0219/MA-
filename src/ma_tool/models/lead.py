@@ -30,6 +30,7 @@ class Lead(Base):
     interest_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     consent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     unsubscribed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    line_blocked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
