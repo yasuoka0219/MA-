@@ -190,14 +190,14 @@ def create_mapping_preview(headers: List[str]) -> MappingPreview:
             ))
             unmapped.append(header)
     
-    all_required = set(HARD_REQUIRED) | {"graduation_year", "grade_label"}
     missing = []
-    for req in HARD_REQUIRED:
-        if req not in mapped_targets and "email1" not in mapped_targets and "email2" not in mapped_targets:
-            missing.append(req)
+    
+    has_email = "email" in mapped_targets or "email1" in mapped_targets or "email2" in mapped_targets
+    if not has_email:
+        missing.append("email (or メールアドレス1/メールアドレス2)")
     
     if "graduation_year" not in mapped_targets and "grade_label" not in mapped_targets:
-        missing.append("graduation_year or grade_label")
+        missing.append("graduation_year or grade_label (卒年/学年)")
     
     return MappingPreview(
         columns=columns,

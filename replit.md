@@ -21,11 +21,19 @@ The MA tool is built upon a modern web stack using FastAPI for the API, PostgreS
   - **Toast Notifications:** Real-time feedback via HTMX triggers.
 - **Legacy Dashboard UI:** Analytical insights into email campaigns with daily, graduation year, and scenario-specific statistics.
 - **CSV Import Workflow:** Implements a two-step preview-and-confirm process to prevent data import errors, supported by automatic column mapping and value normalization for various Japanese and English data formats.
+  - Supports new CSV format: 個人ID, 漢字氏名, 高校正式名称, 卒年, メールアドレス1, メールアドレス2
+  - Email fallback: Uses メールアドレス1 primarily, falls back to メールアドレス2 if empty
+  - Consent defaults to True (university-collected data assumption)
+  - External ID (個人ID) stored for tracking
 
 **Technical Implementations:**
 - **Personal Data Protection:** Includes features for consent management, unsubscribe functionality, comprehensive audit logging of critical operations, and role-based access control.
-- **Email Misdelivery Prevention:** In `dev`/`staging` environments, all emails are redirected to a safe address.
+- **Email Misdelivery Prevention:** In `dev`/`staging` environments, all emails are redirected to `MAIL_REDIRECT_TO` address.
 - **LINE Misdelivery Prevention:** In `dev`/`staging` environments, LINE messages are redirected to `LINE_TEST_USER_ID`.
+- **Template Variable System:** Supports dynamic content substitution:
+  - `{{ lead_name }}`, `{{ lead_email }}`, `{{ lead_school_name }}`, `{{ lead_graduation_year }}`
+  - `{{ unsubscribe_url }}` - Auto-inserted if not present in template
+  - `{{ line_friend_add_url }}` - For directing users to university's official LINE account
 - **Graduation Year Estimation:** Automatically infers graduation year from `grade_label` in CSV data if `graduation_year` is missing.
 - **Messaging Service Abstraction:** Decouples message sending logic from specific providers (Email via SendGrid, LINE via Messaging API), supporting multi-channel delivery.
 - **Scenario Execution Engine:** APScheduler runs every 5 minutes to evaluate scenarios, identify eligible leads based on consent, unsubscribe status, approved templates, graduation year rules (e.g., `within_months`), frequency limits, and prevents duplicate sends.
@@ -40,6 +48,18 @@ The MA tool is built upon a modern web stack using FastAPI for the API, PostgreS
 - **Modular Project Structure:** Organized into `api`, `models`, `schemas`, and `services` to enhance maintainability and separation of concerns.
 - **Robust CSV Handling:** Supports automatic character encoding detection and detailed validation for imported data, including hard (error) and soft (warning) mandatory fields.
 - **Unique Constraint for Sends:** `send_logs` table enforces uniqueness on `lead_id`, `scenario_id`, and `event_id` to prevent duplicate emails for the same trigger.
+
+## Environment Variables
+- `APP_ENV` - Environment: dev, staging, or prod
+- `DATABASE_URL` - PostgreSQL connection string
+- `SENDGRID_API_KEY` - SendGrid API key for email delivery
+- `MAIL_FROM` - Sender email address (university domain)
+- `MAIL_REPLY_TO` - Reply-to address for inquiries
+- `MAIL_REDIRECT_TO` - Test recipient for dev/staging (required in non-prod)
+- `MAIL_ALLOWLIST` - Optional domain allowlist
+- `LINE_FRIEND_ADD_URL` - University's official LINE friend add URL
+- `UNSUBSCRIBE_SECRET` - Secret for signed unsubscribe tokens
+- `SESSION_SECRET_KEY` - Session encryption key
 
 ## External Dependencies
 - **PostgreSQL:** Primary database for persistent storage.

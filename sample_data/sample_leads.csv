@@ -1,0 +1,6 @@
+個人ID,漢字氏名,高校正式名称,卒年,メールアドレス1,メールアドレス2
+STU001,山田 太郎,東京都立日比谷高等学校,2026,taro.yamada@example.com,
+STU002,佐藤 花子,私立桜蔭高等学校,2026,hanako.sato@example.com,hanako2@example.com
+STU003,鈴木 一郎,神奈川県立横浜翠嵐高等学校,2027,ichiro.suzuki@example.com,
+STU004,田中 美咲,兵庫県立神戸高等学校,2026,,misaki.tanaka@example.com
+STU005,高橋 健太,大阪府立北野高等学校,2027,kenta.takahashi@example.com,
