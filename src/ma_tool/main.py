@@ -1,16 +1,18 @@
 """Main FastAPI application"""
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from src.ma_tool.api.endpoints import health, csv_import, unsubscribe, scheduler_api, tracking, templates, views, dashboard, line_webhook
-from src.ma_tool.api.endpoints import ui_auth, ui_leads, ui_line, ui_templates, ui_scenarios, ui_sendlogs
+from src.ma_tool.api.endpoints import ui_auth, ui_leads, ui_line, ui_templates, ui_scenarios, ui_sendlogs, ui_import, ui_dashboard
 from src.ma_tool.config import settings
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 if not settings.SESSION_SECRET_KEY:
     raise RuntimeError("SESSION_SECRET_KEY environment variable is required")
@@ -78,17 +80,46 @@ app.include_router(dashboard.router)
 app.include_router(line_webhook.router)
 
 app.include_router(ui_auth.router)
+app.include_router(ui_dashboard.router)
 app.include_router(ui_leads.router)
 app.include_router(ui_line.router)
 app.include_router(ui_templates.router)
 app.include_router(ui_scenarios.router)
 app.include_router(ui_sendlogs.router)
+app.include_router(ui_import.router)
 
 
 @app.get("/")
-def root():
-    return {
-        "message": "MA Tool API",
-        "environment": settings.APP_ENV,
-        "docs": "/docs"
-    }
+async def root(request: Request):
+    """Root redirect - login or dashboard based on session"""
+    if request.session.get("user_id"):
+        return RedirectResponse(url="/ui/dashboard", status_code=302)
+    return RedirectResponse(url="/login", status_code=302)
+
+
+@app.get("/login")
+async def login_shortcut(request: Request):
+    """Shortcut to /ui/login"""
+    if request.session.get("user_id"):
+        return RedirectResponse(url="/ui/dashboard", status_code=302)
+    return RedirectResponse(url="/ui/login", status_code=302)
+
+
+@app.get("/logout")
+async def logout_shortcut(request: Request):
+    """Shortcut to /ui/logout"""
+    return RedirectResponse(url="/ui/logout", status_code=302)
+
+
+@app.on_event("startup")
+async def log_routes():
+    """Log all registered routes on startup"""
+    logger.info("=" * 60)
+    logger.info("REGISTERED ROUTES:")
+    logger.info("=" * 60)
+    for route in app.routes:
+        if hasattr(route, "methods") and hasattr(route, "path"):
+            methods = ", ".join(route.methods - {"HEAD", "OPTIONS"})
+            if methods:
+                logger.info(f"  {methods:20} {route.path}")
+    logger.info("=" * 60)

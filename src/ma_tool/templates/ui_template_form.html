@@ -36,26 +36,48 @@
             <div id="email-fields" style="display: none;">
                 <div class="mb-3">
                     <label class="form-label">件名</label>
-                    <input type="text" name="subject" class="form-control" value="{{ template.subject if template else '' }}" placeholder="例: {{ '{{' }} lead_name {{ '}}' }}様へのご案内">
+                    <input type="text" name="subject" class="form-control" id="email-subject" value="{{ template.subject if template else '' }}" placeholder="例: {{ '{{' }} lead_name {{ '}}' }}様へのご案内">
                     <div class="form-text">
                         利用可能な変数: <code>{{ '{{' }} lead_name {{ '}}' }}</code>, <code>{{ '{{' }} lead_graduation_year {{ '}}' }}</code>
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">本文（HTML）</label>
-                    <textarea name="body" class="form-control" rows="15">{{ template.body_html if template else '' }}</textarea>
-                    <div class="form-text">
-                        <strong>利用可能な変数:</strong><br>
-                        <code>{{ '{{' }} lead_name {{ '}}' }}</code> - 氏名<br>
-                        <code>{{ '{{' }} lead_email {{ '}}' }}</code> - メールアドレス<br>
-                        <code>{{ '{{' }} lead_school_name {{ '}}' }}</code> - 高校名<br>
-                        <code>{{ '{{' }} lead_graduation_year {{ '}}' }}</code> - 卒業年度<br>
-                        <code>{{ '{{' }} unsubscribe_url {{ '}}' }}</code> - 配信停止リンク（自動挿入あり）<br>
-                        <code>{{ '{{' }} line_friend_add_url {{ '}}' }}</code> - <strong>LINE友だち追加URL（大学公式LINE誘導用）</strong>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label mb-0">本文（HTML）</label>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-success" onclick="insertLineUrl()">
+                                <i class="bi bi-chat-dots"></i> LINE友だち追加URLを挿入
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="togglePreview()">
+                                <i class="bi bi-phone"></i> プレビュー
+                            </button>
+                        </div>
                     </div>
-                    <div class="alert alert-info mt-2">
-                        <i class="bi bi-info-circle"></i> <strong>LINE誘導の例:</strong><br>
-                        <code>&lt;a href="{{ '{{' }} line_friend_add_url {{ '}}' }}"&gt;LINEで最新情報を受け取る（友だち追加）&lt;/a&gt;</code>
+                    <div class="row">
+                        <div class="col-md-7" id="editor-col">
+                            <textarea name="body" class="form-control" rows="18" id="email-body">{{ template.body_html if template else '' }}</textarea>
+                        </div>
+                        <div class="col-md-5 d-none" id="preview-col">
+                            <div class="border rounded bg-white p-2" style="height: 400px; overflow: auto;">
+                                <div class="mx-auto" id="preview-wrapper" style="max-width: 375px; border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: #f8f9fa;">
+                                    <div id="preview-content" style="font-size: 14px;"></div>
+                                </div>
+                            </div>
+                            <div class="btn-group btn-group-sm mt-2 w-100">
+                                <button type="button" class="btn btn-outline-secondary active" onclick="setPreviewWidth(375)">スマホ</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="setPreviewWidth(768)">タブレット</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="setPreviewWidth('100%')">PC</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">
+                        <strong>利用可能な変数:</strong>
+                        <code>{{ '{{' }} lead_name {{ '}}' }}</code> - 氏名 |
+                        <code>{{ '{{' }} lead_email {{ '}}' }}</code> - メールアドレス |
+                        <code>{{ '{{' }} lead_school_name {{ '}}' }}</code> - 高校名 |
+                        <code>{{ '{{' }} lead_graduation_year {{ '}}' }}</code> - 卒業年度 |
+                        <code>{{ '{{' }} unsubscribe_url {{ '}}' }}</code> - 配信停止リンク |
+                        <code>{{ '{{' }} line_friend_add_url {{ '}}' }}</code> - LINE友だち追加URL
                     </div>
                 </div>
             </div>
@@ -96,5 +118,51 @@ function toggleChannelFields() {
     document.getElementById('line-fields').style.display = channel === 'line' ? 'block' : 'none';
 }
 toggleChannelFields();
+
+function insertLineUrl() {
+    const textarea = document.getElementById('email-body');
+    const lineHtml = '\n<p style="text-align: center; margin-top: 20px;">\n  <a href="{{ line_friend_add_url }}" style="display: inline-block; background-color: #06C755; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">\n    <span style="font-size: 18px;">&#x1F4AC;</span> LINEで最新情報を受け取る\n  </a>\n</p>\n';
+    const cursorPos = textarea.selectionStart;
+    const textBefore = textarea.value.substring(0, cursorPos);
+    const textAfter = textarea.value.substring(cursorPos);
+    textarea.value = textBefore + lineHtml + textAfter;
+    textarea.focus();
+    updatePreview();
+}
+
+let previewVisible = false;
+function togglePreview() {
+    previewVisible = !previewVisible;
+    const editorCol = document.getElementById('editor-col');
+    const previewCol = document.getElementById('preview-col');
+    if (previewVisible) {
+        editorCol.className = 'col-md-7';
+        previewCol.classList.remove('d-none');
+        updatePreview();
+    } else {
+        editorCol.className = 'col-md-12';
+        previewCol.classList.add('d-none');
+    }
+}
+
+function updatePreview() {
+    const body = document.getElementById('email-body').value;
+    const preview = document.getElementById('preview-content');
+    let html = body
+        .replace(/\{\{\s*lead_name\s*\}\}/g, '山田 太郎')
+        .replace(/\{\{\s*lead_email\s*\}\}/g, 'yamada@example.com')
+        .replace(/\{\{\s*lead_school_name\s*\}\}/g, '○○高校')
+        .replace(/\{\{\s*lead_graduation_year\s*\}\}/g, '2026')
+        .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, '#')
+        .replace(/\{\{\s*line_friend_add_url\s*\}\}/g, '#');
+    preview.innerHTML = html;
+}
+
+function setPreviewWidth(width) {
+    const wrapper = document.getElementById('preview-wrapper');
+    wrapper.style.maxWidth = typeof width === 'number' ? width + 'px' : width;
+}
+
+document.getElementById('email-body')?.addEventListener('input', updatePreview);
 </script>
 {% endblock %}

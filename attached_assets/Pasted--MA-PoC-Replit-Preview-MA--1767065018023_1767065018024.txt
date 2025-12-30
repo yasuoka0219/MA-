@@ -1,0 +1,258 @@
+# 依頼：MAツールを「メール配信PoC（大学ドメイン）」として完成させ、Replit Previewで“デモ可能な管理画面”を必ず表示する統合修正
+
+あなたは大学向けMAツールを開発するシニアフルスタックエンジニア兼PMです。
+目的は「大学提供CSVを一括取り込み → メールで配信 → 本文で大学公式LINE友だち追加へ誘導 → 管理画面で運用」を
+Replit上で“本番に近いUI/UXのデモ”として見せられる状態にすることです。
+
+====================================================
+【最重要ポリシー（必ず守る）】
+====================================================
+- 既存API(/docs等)を壊さずに、UIを確実に表示できるようにする（Not Foundを解消）
+- Replit Previewで最初に見えるのは「ログイン画面」（または未ログインならログインへ自動遷移）
+- dev/stagingは誤送信防止（強制転送）を絶対に外さない
+- 本番/PoCでの安全性：同意管理、配信停止、承認フロー、監査ログを必須にする
+- UIはReact禁止。Jinja2 + HTMX + Bootstrap5(CDN)で“清潔感・信頼感”のある管理画面にする
+- CSVは日本語ヘッダ・Shift_JIS(cp932)を想定し、事故なく取り込めること
+
+====================================================
+【技術スタック】
+====================================================
+- Backend: FastAPI
+- DB: PostgreSQL
+- ORM: SQLAlchemy
+- Migration: Alembic
+- Session: starlette.middleware.sessions
+- Templates: Jinja2
+- UI: HTMX
+- CSS: Bootstrap 5（CDN）
+- Email: SendGrid（API）
+
+====================================================
+【環境変数（Replit Secrets） 必須】
+====================================================
+- APP_ENV=dev|staging|prod
+- DATABASE_URL
+- SESSION_SECRET_KEY（未設定なら起動時にエラー）
+- SENDGRID_API_KEY
+- MAIL_FROM（大学ドメイン。例: noreply@univ.ac.jp）
+- MAIL_REPLY_TO（問い合わせ先）
+- MAIL_REDIRECT_TO（dev/stagingの強制転送先）
+- LINE_FRIEND_ADD_URL（大学公式アカウントURL）
+- UNSUBSCRIBE_SECRET
+任意：
+- MAIL_ALLOWLIST（例: univ.ac.jpのみ許可など）
+- DEMO_SEED_ENABLED=true/false
+
+====================================================
+【A. ルーティング修正（UIが出ない/404を確実に解消）】
+====================================================
+1) UIルーターをFastAPIアプリに確実に登録し、/login が必ず存在するようにする
+- /ui/login と /login の両方でログイン画面を表示（同じテンプレでOK）
+- /ui/logout と /logout の両方でログアウト可能にする
+
+2) Replit Previewで迷子にならない導線
+- GET / は未ログインなら /login へ、ログイン済みなら /ui/dashboard へ 302リダイレクト
+- GET /ui は未ログインなら /ui/login へ、ログイン済みなら /ui/dashboard へリダイレクト
+
+3) APIは壊さない
+- /docs は継続して使える
+- 可能ならAPIは /api に寄せてもよいが、既存互換を守る
+
+4) 静的ファイル/テンプレパスをReplit構成に合わせる
+- app.mount("/static", StaticFiles(directory="app/static"), name="static")
+- templates = Jinja2Templates(directory="app/templates")
+
+5) SessionMiddleware
+- starlette.middleware.sessions.SessionMiddleware を使用
+- secret_key は SESSION_SECRET_KEY から読み込む（未設定なら起動時エラー）
+- 本番相当を意識して same_site="lax" を設定（https_only は環境に応じて）
+
+6) “ルーティング一覧”を起動ログに出す（デバッグ容易化）
+- 起動時に登録されたルート（path, methods）をログ出力して確認できるようにする
+
+====================================================
+【B. DBモデル（メール配信PoC向け）】
+====================================================
+最低限これが動けばOK。既存モデルがあるなら整合させて移行する。
+
+◆ users
+- id, email(unique), name, role(enum: admin/editor/approver/viewer), is_active, created_at
+
+◆ leads
+- id
+- external_id（個人ID）
+- name
+- school_name
+- graduation_year (int)
+- graduation_year_source ("csv"|"estimated")
+- email (unique)
+- consent (bool, default=True)
+- unsubscribed (bool, default=False)
+- created_at, updated_at
+
+◆ templates（メール用）
+- id
+- name
+- channel_type ("email")  # 将来line共存も可
+- subject (String)
+- body_html (Text)  # 最初はTextでもOK
+- status ("draft"|"pending"|"approved"|"rejected")
+- created_by, approved_by, approved_at, rejected_reason
+- created_at, updated_at
+
+◆ scenarios
+- id, name, template_id, trigger_event_type, delay_days, frequency_days, graduation_year_rule(JSON), is_enabled, created_at, updated_at
+
+◆ send_logs
+- id, lead_id, scenario_id
+- channel ("email")
+- scheduled_for, sent_at
+- status ("scheduled"|"sent"|"failed"|"blocked")
+- provider_message_id
+- error_message
+- attempt_count
+- created_at
+
+◆ audit_logs
+- id, actor_user_id, actor_role_snapshot, action, target_type, target_id, meta_json, created_at
+
+====================================================
+【C. CSVインポート：大学提供サンプルCSV(data_20251226131143.csv)に完全対応】
+====================================================
+- 文字コード：UTF-8で失敗したらcp932で再読込
+- 日本語ヘッダの列を次にマッピング：
+  - 「漢字氏名」→ leads.name（前後空白/全角スペース除去）
+  - 「メールアドレス1」→ leads.email（優先）
+  - 「メールアドレス2」→ メール1が空のときフォールバック
+  - 「卒年」→ leads.graduation_year（数値化）
+  - 「高校正式名称」→ leads.school_name
+  - 「個人ID」→ leads.external_id
+- upsert：emailをキーに追加/更新。external_idも保存
+- consentはPoC前提でTrue初期セット（将来列が来ても対応できる形に）
+- 取込結果をUIに表示：
+  - 追加件数/更新件数/エラー件数
+  - エラー行（行番号＋理由）を表示し、必要ならCSVダウンロード
+- UIでインポート進捗を見せる：
+  - HTMXで擬似Progress表示 or “処理中…”表示＋完了通知（トースト/アラート）
+
+====================================================
+【D. メール送信（SendGrid）＋誤送信防止】
+====================================================
+- EmailProvider（疎結合）を実装し、将来非同期化しやすい構造にする
+- dev/stagingは必ず宛先を MAIL_REDIRECT_TO に差し替えて送信（誤送信防止の安全装置）
+- prodのみ実宛先へ送信
+- メールには必ず以下を含める：
+  1) 配信停止リンク（署名付きURL）
+  2) LINE友だち追加リンク（LINE_FRIEND_ADD_URL をテンプレ差し込み）
+- 送信結果は send_logs に保存し、失敗理由も記録
+
+====================================================
+【E. UI/UX（デモとして“本番に近い”見せ方にする）】
+====================================================
+方針：
+- Bootstrap5をCDNで読み込み
+- “清潔感・信頼感・使いやすさ”を意識（大学広報に刺さるトーン）
+- 左サイドバー＋上部ナビの管理画面レイアウト
+- 画面上部に APP_ENV バッジと環境バナーを常時表示
+  - dev/staging：黄色「DEMO/検証環境：実送信されません」
+  - prod：赤「本番環境：実送信されます（注意）」
+
+(1) ログイン
+- /login（=/ui/login）を必ず提供
+- 中央にカード型ログインフォーム（洗練された見た目）
+- ログイン失敗時はトースト通知（HTMX/JSで可）
+- セッションにuser_id/roleを保持
+
+(2) ダッシュボード（デモの入口）
+- /ui/dashboard を提供
+- KPIカード：Leads数、Templates(approved)数、Scenarios(enabled)数、SendLogs(sent/failed)数
+- 最近の送信ログ10件
+- 主要導線（Leads / Templates / Scenarios / SendLogs / Import）
+
+(3) リード管理（デモの華）
+- /ui/leads：検索（email/学校/卒年）＋フィルタ（卒年・高校名）
+- 一覧に「受信メール通数」を表示（send_logs集計）
+- 受信通数はバッジ/アイコンで視覚化
+- /ui/leads/{id}：詳細（基本情報＋送信履歴）
+
+(4) CSVインポート画面
+- /ui/import：CSVアップロード
+- 処理中表示＋完了トースト（成功/失敗）
+- 取り込み結果サマリを表示
+
+(5) テンプレ管理（メール＋承認）
+- /ui/templates：一覧（statusフィルタ）
+- /ui/templates/new：subject + body_html を編集
+- 本文に「LINE友だち追加リンクを挿入」ボタン（{{ line_friend_add_url }} を自動挿入）
+- メール本文プレビュー：
+  - PC表示
+  - スマホ幅プレビュー（簡易でOK：幅を狭くした枠で表示）
+- 承認フロー：draft→pending→approved/rejected
+- approvedは編集不可、cloneで新規作成
+- dev/staging限定で“テスト送信”ボタン（MAIL_REDIRECT_TOへ送る）
+
+(6) シナリオ管理
+- /ui/scenarios：一覧
+- /ui/scenarios/new：作成（templateはapprovedのみ選択可）
+- 対象人数プレビュー（件数＋上位20件）を必須機能として実装
+- dev/stagingでは誤操作防止のため、is_enabled ON は二重確認（またはadminのみ）
+
+(7) 送信ログ
+- /ui/send-logs：status/期間フィルタ
+- failed理由を見える化
+
+(8) HTMXの成功/失敗フィードバック（必須）
+- HTMX操作（保存、承認、インポート完了等）で、
+  画面上部にトースト/アラートを表示する仕組みを実装
+- 可能なら HX-Trigger でイベント送信して表示
+
+====================================================
+【F. デモデータ（任意：デモを強くする）】
+====================================================
+- /ui/demo-seed（adminのみ、DEMO_SEED_ENABLED=trueの時のみ）を実装
+- 架空データのみ投入（実在個人情報は使わない）
+- leads 200件、templates 2件（approved含む）、scenarios 3件、send_logs数件
+
+====================================================
+【G. ディレクトリ構成（推奨）】
+====================================================
+app/
+  ├── main.py
+  ├── settings.py
+  ├── db.py
+  ├── models/
+  ├── services/
+  ├── providers/
+  ├── routers/
+  │   ├── api.py
+  │   └── ui.py
+  ├── templates/
+  │   ├── base.html
+  │   ├── login.html
+  │   ├── dashboard.html
+  │   ├── leads_list.html
+  │   ├── lead_detail.html
+  │   ├── templates_list.html
+  │   ├── template_form.html
+  │   ├── template_detail.html
+  │   ├── scenarios_list.html
+  │   ├── scenario_form.html
+  │   ├── import.html
+  │   └── send_logs.html
+  └── static/
+      ├── app.css
+      └── app.js（トースト制御など最低限）
+
+====================================================
+【H. 出力・検証（必須）】
+====================================================
+- 修正したファイル一覧
+- 登録ルート一覧（path/method）を出力
+- Replit Previewで以下が成立すること：
+  1) / にアクセス → ログイン画面が表示（未ログイン） or ダッシュボード（ログイン済）
+  2) /login が200でHTMLを返す（Not Foundを解消）
+  3) /ui/dashboard が表示される
+  4) /docs が引き続き開ける
+  5) CSVインポートが data_20251226131143.csv で成功する（cp932含む）
+  6) dev/stagingでのテスト送信は MAIL_REDIRECT_TO にのみ飛ぶ
+- 動作確認手順（取込→テンプレ作成→承認→対象プレビュー→テスト送信→ログ確認）をドキュメント化

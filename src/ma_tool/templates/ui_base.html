@@ -56,13 +56,18 @@
             <hr class="text-secondary my-0">
             <ul class="nav flex-column">
                 <li class="nav-item">
-                    <a class="nav-link {% if '/ui/leads' in request.url.path %}active{% endif %}" href="/ui/leads">
+                    <a class="nav-link {% if request.url.path == '/ui/dashboard' %}active{% endif %}" href="/ui/dashboard">
+                        <i class="bi bi-speedometer2"></i>ダッシュボード
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if '/ui/leads' in request.url.path and '/ui/line' not in request.url.path %}active{% endif %}" href="/ui/leads">
                         <i class="bi bi-people"></i>リード
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if '/ui/line-identities' in request.url.path %}active{% endif %}" href="/ui/line-identities">
-                        <i class="bi bi-chat-dots"></i>LINE紐付け
+                    <a class="nav-link {% if '/ui/import' in request.url.path %}active{% endif %}" href="/ui/import">
+                        <i class="bi bi-upload"></i>CSVインポート
                     </a>
                 </li>
                 <li class="nav-item">
@@ -78,6 +83,11 @@
                 <li class="nav-item">
                     <a class="nav-link {% if '/ui/send-logs' in request.url.path %}active{% endif %}" href="/ui/send-logs">
                         <i class="bi bi-envelope"></i>配信ログ
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if '/ui/line-identities' in request.url.path %}active{% endif %}" href="/ui/line-identities">
+                        <i class="bi bi-chat-dots"></i>LINE紐付け
                     </a>
                 </li>
             </ul>

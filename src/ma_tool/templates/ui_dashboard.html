@@ -1,0 +1,201 @@
+{% extends "ui_base.html" %}
+
+{% block title %}ダッシュボード - MA Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-speedometer2"></i> ダッシュボード</h2>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card card-stat card-stat-primary shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">リード数</h6>
+                        <h3 class="mb-0">{{ leads_count }}</h3>
+                    </div>
+                    <div class="text-primary opacity-50">
+                        <i class="bi bi-people fs-1"></i>
+                    </div>
+                </div>
+                <a href="/ui/leads" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-stat card-stat-success shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">テンプレート</h6>
+                        <h3 class="mb-0">{{ templates_approved }}<small class="text-muted fs-6">/{{ templates_total }}</small></h3>
+                        <small class="text-success">承認済み</small>
+                    </div>
+                    <div class="text-success opacity-50">
+                        <i class="bi bi-file-text fs-1"></i>
+                    </div>
+                </div>
+                <a href="/ui/templates" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-stat card-stat-warning shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">シナリオ</h6>
+                        <h3 class="mb-0">{{ scenarios_enabled }}<small class="text-muted fs-6">/{{ scenarios_total }}</small></h3>
+                        <small class="text-warning">有効</small>
+                    </div>
+                    <div class="text-warning opacity-50">
+                        <i class="bi bi-diagram-3 fs-1"></i>
+                    </div>
+                </div>
+                <a href="/ui/scenarios" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card card-stat card-stat-danger shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">配信</h6>
+                        <h3 class="mb-0">{{ sent_count }}</h3>
+                        {% if failed_count > 0 %}
+                        <small class="text-danger">失敗: {{ failed_count }}件</small>
+                        {% else %}
+                        <small class="text-success">エラーなし</small>
+                        {% endif %}
+                    </div>
+                    <div class="text-danger opacity-50">
+                        <i class="bi bi-envelope fs-1"></i>
+                    </div>
+                </div>
+                <a href="/ui/send-logs" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history"></i> 最近の配信ログ</span>
+                <a href="/ui/send-logs" class="btn btn-sm btn-outline-primary">すべて見る</a>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_logs %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>日時</th>
+                                <th>リード</th>
+                                <th>チャネル</th>
+                                <th>ステータス</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in recent_logs %}
+                            <tr>
+                                <td>{{ log.created_at.strftime('%m/%d %H:%M') }}</td>
+                                <td>
+                                    {% if log.lead %}
+                                    <a href="/ui/leads/{{ log.lead.id }}">{{ log.lead.name or log.lead.email }}</a>
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.channel == 'email' %}
+                                    <i class="bi bi-envelope text-primary"></i> Email
+                                    {% else %}
+                                    <i class="bi bi-chat-dots text-success"></i> LINE
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if log.status.value == 'sent' %}
+                                    <span class="badge bg-success">送信済み</span>
+                                    {% elif log.status.value == 'failed' %}
+                                    <span class="badge bg-danger">失敗</span>
+                                    {% elif log.status.value == 'scheduled' %}
+                                    <span class="badge bg-warning text-dark">予定</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ log.status.value }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p class="mt-2">配信ログがありません</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <i class="bi bi-lightning"></i> クイックアクション
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/ui/import" class="btn btn-outline-primary">
+                        <i class="bi bi-upload"></i> CSVインポート
+                    </a>
+                    <a href="/ui/templates/new" class="btn btn-outline-primary">
+                        <i class="bi bi-plus-circle"></i> テンプレート作成
+                    </a>
+                    <a href="/ui/scenarios/new" class="btn btn-outline-primary">
+                        <i class="bi bi-diagram-3"></i> シナリオ作成
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card shadow-sm mt-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 環境情報
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr>
+                        <td class="text-muted">環境</td>
+                        <td>
+                            {% if app_env == 'prod' %}
+                            <span class="badge bg-danger">{{ app_env|upper }}</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">{{ app_env|upper }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">送信モード</td>
+                        <td>
+                            {% if is_production %}
+                            <span class="text-danger">本番送信</span>
+                            {% else %}
+                            <span class="text-success">テスト（リダイレクト）</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

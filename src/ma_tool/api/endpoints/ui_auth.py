@@ -26,7 +26,7 @@ def get_base_context(request: Request, user: Optional[User] = None):
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, error: Optional[str] = None):
     if request.session.get("user_id"):
-        return RedirectResponse(url="/ui/leads", status_code=302)
+        return RedirectResponse(url="/ui/dashboard", status_code=302)
     
     return templates.TemplateResponse("login.html", {
         **get_base_context(request),
@@ -54,7 +54,7 @@ async def login(
     request.session["user_id"] = user.id
     request.session["user_role"] = user.role.value
     
-    return RedirectResponse(url="/ui/leads", status_code=302)
+    return RedirectResponse(url="/ui/dashboard", status_code=302)
 
 
 @router.get("/logout")
