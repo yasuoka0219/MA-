@@ -26,8 +26,8 @@
                     <div class="mb-3">
                         <label class="form-label">チャネル <span class="text-danger">*</span></label>
                         <select name="channel_type" class="form-select" id="channel-select" onchange="toggleChannelFields()">
-                            <option value="email" {% if template and template.channel_type.value == 'email' %}selected{% endif %}>Email</option>
-                            <option value="line" {% if template and template.channel_type.value == 'line' %}selected{% elif is_new %}selected{% endif %}>LINE</option>
+                            <option value="email" {% if template and template.channel_type.value == 'email' %}selected{% elif is_new %}selected{% endif %}>Email</option>
+                            <option value="line" {% if template and template.channel_type.value == 'line' %}selected{% endif %}>LINE</option>
                         </select>
                     </div>
                 </div>
@@ -36,11 +36,27 @@
             <div id="email-fields" style="display: none;">
                 <div class="mb-3">
                     <label class="form-label">件名</label>
-                    <input type="text" name="subject" class="form-control" value="{{ template.subject if template else '' }}">
+                    <input type="text" name="subject" class="form-control" value="{{ template.subject if template else '' }}" placeholder="例: {{ '{{' }} lead_name {{ '}}' }}様へのご案内">
+                    <div class="form-text">
+                        利用可能な変数: <code>{{ '{{' }} lead_name {{ '}}' }}</code>, <code>{{ '{{' }} lead_graduation_year {{ '}}' }}</code>
+                    </div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">本文</label>
-                    <textarea name="body" class="form-control" rows="10">{{ template.body if template else '' }}</textarea>
+                    <label class="form-label">本文（HTML）</label>
+                    <textarea name="body" class="form-control" rows="15">{{ template.body_html if template else '' }}</textarea>
+                    <div class="form-text">
+                        <strong>利用可能な変数:</strong><br>
+                        <code>{{ '{{' }} lead_name {{ '}}' }}</code> - 氏名<br>
+                        <code>{{ '{{' }} lead_email {{ '}}' }}</code> - メールアドレス<br>
+                        <code>{{ '{{' }} lead_school_name {{ '}}' }}</code> - 高校名<br>
+                        <code>{{ '{{' }} lead_graduation_year {{ '}}' }}</code> - 卒業年度<br>
+                        <code>{{ '{{' }} unsubscribe_url {{ '}}' }}</code> - 配信停止リンク（自動挿入あり）<br>
+                        <code>{{ '{{' }} line_friend_add_url {{ '}}' }}</code> - <strong>LINE友だち追加URL（大学公式LINE誘導用）</strong>
+                    </div>
+                    <div class="alert alert-info mt-2">
+                        <i class="bi bi-info-circle"></i> <strong>LINE誘導の例:</strong><br>
+                        <code>&lt;a href="{{ '{{' }} line_friend_add_url {{ '}}' }}"&gt;LINEで最新情報を受け取る（友だち追加）&lt;/a&gt;</code>
+                    </div>
                 </div>
             </div>
 

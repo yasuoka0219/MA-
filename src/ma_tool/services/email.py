@@ -15,6 +15,7 @@ class EmailMessage:
     subject: str
     html_content: str
     from_email: Optional[str] = None
+    reply_to: Optional[str] = None
 
 
 @dataclass
@@ -45,6 +46,10 @@ class SendGridProvider(EmailProvider):
                 subject=message.subject,
                 html_content=message.html_content
             )
+            
+            if message.reply_to:
+                from sendgrid.helpers.mail import ReplyTo
+                mail.reply_to = ReplyTo(message.reply_to)
             
             sg = SendGridAPIClient(self.api_key)
             response = sg.send(mail)
@@ -122,7 +127,8 @@ class EmailService:
             to_email=self._redirect_to,
             subject=f"[REDIRECTED from {original_recipient}] {message.subject}",
             html_content=message.html_content,
-            from_email=message.from_email
+            from_email=message.from_email,
+            reply_to=message.reply_to
         )
         
         return redirected_message, None
@@ -159,13 +165,15 @@ def send_email(
     to_email: str,
     subject: str,
     html_content: str,
-    from_email: Optional[str] = None
+    from_email: Optional[str] = None,
+    reply_to: Optional[str] = None
 ) -> EmailResult:
     service = get_email_service()
     message = EmailMessage(
         to_email=to_email,
         subject=subject,
         html_content=html_content,
-        from_email=from_email
+        from_email=from_email,
+        reply_to=reply_to or settings.MAIL_REPLY_TO
     )
     return service.send(message)

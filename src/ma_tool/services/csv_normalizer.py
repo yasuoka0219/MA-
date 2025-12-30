@@ -5,9 +5,12 @@ from typing import Dict, List, Optional, Tuple
 
 
 COLUMN_ALIASES: Dict[str, List[str]] = {
-    "email": ["email", "mail", "メール", "メールアドレス", "eメール", "mailaddress", "emailaddress"],
-    "name": ["name", "名前", "氏名", "姓名", "fullname", "フルネーム"],
-    "school_name": ["school_name", "schoolname", "school", "学校", "学校名", "高校", "高校名", "出身校"],
+    "external_id": ["external_id", "externalid", "個人id", "個人ID", "学生id", "学生ID", "student_id", "studentid", "id"],
+    "email": ["email", "mail", "メール", "メールアドレス", "eメール", "mailaddress", "emailaddress", "メールアドレス1", "メールアドレス2"],
+    "email1": ["メールアドレス1", "email1", "mail1", "メール1", "email_1"],
+    "email2": ["メールアドレス2", "email2", "mail2", "メール2", "email_2"],
+    "name": ["name", "名前", "氏名", "姓名", "fullname", "フルネーム", "漢字氏名"],
+    "school_name": ["school_name", "schoolname", "school", "学校", "学校名", "高校", "高校名", "出身校", "高校正式名称"],
     "graduation_year": ["graduation_year", "graduationyear", "卒業年", "卒業年度", "卒年", "grad_year", "gradyear"],
     "grade_label": ["grade_label", "gradelabel", "grade", "学年", "year", "年次"],
     "interest_tags": ["interest_tags", "interesttags", "interest", "興味", "関心", "志望", "志望学部", "tags", "タグ"],

@@ -12,8 +12,11 @@ class Settings(BaseSettings):
     APP_ENV: str = "dev"
     
     MAIL_FROM: str = "noreply@example.com"
+    MAIL_REPLY_TO: str = ""
     MAIL_REDIRECT_TO: str = ""
     MAIL_ALLOWLIST: str = ""
+    
+    LINE_FRIEND_ADD_URL: str = ""
     
     UNSUBSCRIBE_SECRET: str = "change-me-in-production"
     TRACKING_SECRET: str = "change-me-in-production"

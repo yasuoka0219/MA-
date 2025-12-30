@@ -21,6 +21,7 @@ from src.ma_tool.services.scenario_engine import (
     evaluate_scenario_for_lead,
     create_send_log_reservation,
 )
+from src.ma_tool.services.template_renderer import render_email_body, render_subject
 from src.ma_tool.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -77,18 +78,20 @@ def send_single_email(
             send_log.error_message = "Missing lead, scenario, or template"
             return False
         
-        html_with_tracking = inject_tracking_pixel(template.body_html, send_log.id)
+        rendered_body = render_email_body(template.body_html or "", lead)
+        html_with_tracking = inject_tracking_pixel(rendered_body, send_log.id)
         
-        subject = template.subject.replace("{{name}}", lead.name or "")
-        html_body = html_with_tracking.replace("{{name}}", lead.name or "")
+        subject = render_subject(template.subject or "", lead)
         
         send_log.attempt_count += 1
         send_log.original_recipient = lead.email
         
+        settings = get_settings()
         message = EmailMessage(
             to_email=lead.email,
             subject=subject,
-            html_content=html_body
+            html_content=html_with_tracking,
+            reply_to=settings.MAIL_REPLY_TO if settings.MAIL_REPLY_TO else None
         )
         result = email_service.send(message)
         

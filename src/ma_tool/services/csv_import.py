@@ -34,8 +34,8 @@ from src.ma_tool.schemas.lead import CSVImportResult
 
 IMPORT_SESSIONS: Dict[str, Dict[str, Any]] = {}
 
-HARD_REQUIRED = ["email", "consent"]
-SOFT_REQUIRED = ["name", "school_name", "interest_tags"]
+HARD_REQUIRED = ["email"]
+SOFT_REQUIRED = ["name", "school_name", "interest_tags", "external_id"]
 
 
 def decode_csv_content(content: bytes) -> str:
@@ -67,7 +67,8 @@ def estimate_graduation_year_from_grade(grade: int) -> int:
 def validate_and_normalize_row(
     row: Dict[str, str],
     mapping: Dict[str, str],
-    row_num: int
+    row_num: int,
+    default_consent: bool = True
 ) -> Tuple[Dict[str, Any], List[str], List[str]]:
     errors = []
     warnings = []
@@ -79,6 +80,14 @@ def validate_and_normalize_row(
             mapped_row[mapping[orig_col]] = value
     
     email_raw = mapped_row.get("email", "").strip()
+    email1_raw = mapped_row.get("email1", "").strip()
+    email2_raw = mapped_row.get("email2", "").strip()
+    
+    if email1_raw:
+        email_raw = email1_raw
+    elif email2_raw:
+        email_raw = email2_raw
+    
     if not email_raw:
         errors.append("email is required (hard required)")
     else:
@@ -89,15 +98,25 @@ def validate_and_normalize_row(
         except EmailNotValidError as e:
             errors.append(f"invalid email format: {str(e)}")
     
+    external_id_raw = mapped_row.get("external_id", "").strip()
+    if external_id_raw:
+        normalized["external_id"] = normalize_text(external_id_raw)
+    else:
+        warnings.append("external_id is missing (soft required)")
+        normalized["external_id"] = None
+    
     consent_raw = mapped_row.get("consent", "").strip()
     if not consent_raw:
-        errors.append("consent is required (hard required)")
+        normalized["consent"] = default_consent
     else:
         consent_val, is_ambiguous = normalize_consent(consent_raw)
         if is_ambiguous:
-            errors.append(f"ambiguous consent value: '{consent_raw}' (use true/false, yes/no, 同意あり/なし)")
+            warnings.append(f"ambiguous consent value: '{consent_raw}', defaulting to {default_consent}")
+            normalized["consent"] = default_consent
         elif consent_val is not None:
             normalized["consent"] = consent_val
+        else:
+            normalized["consent"] = default_consent
     
     graduation_year_raw = mapped_row.get("graduation_year", "").strip()
     grade_label_raw = mapped_row.get("grade_label", "").strip()
@@ -174,7 +193,7 @@ def create_mapping_preview(headers: List[str]) -> MappingPreview:
     all_required = set(HARD_REQUIRED) | {"graduation_year", "grade_label"}
     missing = []
     for req in HARD_REQUIRED:
-        if req not in mapped_targets:
+        if req not in mapped_targets and "email1" not in mapped_targets and "email2" not in mapped_targets:
             missing.append(req)
     
     if "graduation_year" not in mapped_targets and "grade_label" not in mapped_targets:
@@ -352,6 +371,8 @@ def execute_import(
                 )
                 existing.interest_tags = normalized.get("interest_tags")
                 existing.consent = normalized["consent"]
+                if normalized.get("external_id"):
+                    existing.external_id = normalized["external_id"]
                 updated += 1
             else:
                 lead = Lead(**normalized)
