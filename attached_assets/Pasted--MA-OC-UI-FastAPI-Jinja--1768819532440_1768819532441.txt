@@ -1,0 +1,276 @@
+以下の要件で、既存のMAツールに「イベント日程（OCなど）をUI上で登録できる」機能を追加してください。既存機能は壊さず、後方互換を保ったまま拡張してください。実装はFastAPI + Jinjaテンプレ + SQLAlchemy + Alembic + APSchedulerの既存構成に沿ってください。
+
+目的
+
+現状は「イベント日程（event_date）」をCSVで持たせる想定だが、運用上はUIでイベント日程を登録・編集し、そのイベントに対して「参加者（リード）」を紐付けて、イベント日程基準の配信（-7日前・翌日など）を回したい。
+
+1. データモデル（推奨：将来拡張型）
+1-1. eventsテーブルを追加（イベントマスタ）
+
+events テーブルを新設し、最低限以下を持たせる：
+
+id（PK）
+
+event_type（string: oc / 説明会 / 面談 etc）
+
+title（string: UI表示用。例「3/15 OC」）
+
+event_date（date or datetime）
+
+location（任意）
+
+notes（任意）
+
+is_active（bool）
+
+created_at, updated_at
+
+※ event_dateはまずdateでOK。将来の時間指定に備えdatetimeへの拡張を想定する。
+
+1-2. lead_event_registrations（参加紐付け）を追加（推奨）
+
+同一リードが複数イベントに参加できるように、紐付けテーブルを追加：
+
+id（PK）
+
+lead_id（FK）
+
+event_id（FK）
+
+status（予定/参加/欠席/キャンセル など、任意で）
+
+created_at
+
+ユニーク制約：(lead_id, event_id)（二重登録防止）
+
+2. UI機能（イベント管理画面）
+2-1. イベント一覧画面
+
+新規に「イベント一覧」画面を作成する。
+
+表示項目：
+
+日程（event_date）
+
+タイトル（title）
+
+種別（event_type）
+
+状態（active/inactive）
+
+参加者数（registration count）
+
+操作：詳細、編集、無効化/有効化、参加者管理へ
+
+フィルタ：
+
+すべて / 有効のみ / 無効のみ
+
+event_typeフィルタ（任意）
+
+2-2. イベント作成/編集画面
+
+フォーム項目：
+
+event_type（プルダウン＋自由入力でも可）
+
+title（必須）
+
+event_date（必須：日付ピッカー）
+
+location（任意）
+
+notes（任意）
+
+is_active（デフォルトtrue）
+
+入力検証：
+
+event_dateが過去でも登録は可能（過去イベントも管理したい）
+
+title空は禁止
+
+event_type空は禁止（最低でもoc等）
+
+3. UI機能（参加者＝リードの紐付け）
+3-1. イベント詳細画面（参加者管理）
+
+イベント詳細ページに「参加者（リード）管理」セクションを追加。
+
+表示
+
+現在紐付いているリード一覧（名前、メール、属性、ステータス等）
+
+参加ステータス（予定/参加/欠席/キャンセル）を変更可能（任意）
+
+解除ボタン
+
+追加（紐付け）方法
+
+最低限以下を実装（A推奨、Bは余裕があれば）
+
+A（推奨）: 「リード検索して追加」
+
+検索ボックス（メール、名前、external_id等で部分一致）
+
+検索結果の行に「追加」ボタン
+
+追加すると registrations が作られる
+
+B（任意）: 「CSVで参加者だけ追加」
+
+lead_id または email のCSVで一括紐付け
+
+重複追加はユニーク制約で防ぐ（UIでも警告）。
+
+4. シナリオの拡張（イベント基準の送信）
+4-1. シナリオに base_date_type を追加（前回案の継続）
+
+シナリオに以下を追加：
+
+base_date_type：
+
+lead_created_at（従来互換）
+
+event_date（新：イベント日程基準）
+
+4-2. event_date基準の対象者
+
+base_date_type = event_date のシナリオは、
+「該当イベントに紐付いた参加者」に対して送る。
+
+どのイベントに対して動くかを指定するために、シナリオに追加項目：
+
+event_type_filter（例：oc）
+
+または
+
+event_id（特定イベントに紐付け）
+
+推奨仕様（運用しやすい）
+
+基本は「event_typeで対象イベントを拾う」
+
+ただし「特定イベントだけ」もできるようにevent_id指定も用意（任意）
+
+例：
+
+トリガー：oc
+
+base_date_type：event_date
+
+event_type_filter：oc
+
+delay_days：-7
+
+→ すべての「ocイベント」に紐付いている参加者に、各イベント日程の7日前に送る
+
+5. スケジューラの送信抽出ロジック（重要）
+
+APSchedulerが実行されるたびに、以下を満たす送信対象を抽出：
+
+シナリオ有効
+
+base_date_typeがlead_created_at or event_date
+
+lead_created_at基準 → 従来通り
+
+event_date基準 →
+
+対象イベント（activeのみ推奨）を取得
+
+event_date + delay_days が「今送るべき日」に一致するイベントを抽出
+
+そのイベントに紐付く参加者（registrations）を抽出
+
+送信ログ重複防止（既存のsend_logs unique constraintに合わせる）
+
+送信ログ識別（重要）
+
+event_date基準の場合、同じリードが別イベントでも送れるため、
+send_logsの重複判定キーに event_id（または event_date + event_type） を含めること。
+
+例：
+
+unique: (lead_id, scenario_id, event_id)
+が理想。
+
+6. UI（シナリオ作成/編集画面）の変更
+
+シナリオ作成/編集フォームに以下を追加：
+
+基準日（リード登録日 / イベント日程）
+
+イベント対象（基準日がイベント日程の場合のみ表示）
+
+event_type_filter（oc / 説明会 etc）
+
+（任意）特定イベントID選択（event一覧から選択）
+
+一覧にも「基準日」「イベント条件」が見えるようにする。
+
+7. ルーティング（エンドポイント）
+
+以下のページを追加：
+
+/ui/events（イベント一覧）
+
+/ui/events/new（新規作成）
+
+/ui/events/{event_id}（詳細＋参加者管理）
+
+/ui/events/{event_id}/edit（編集）
+
+/api/events（必要なら）
+
+/api/events/{event_id}/registrations（追加/削除）
+
+既存のUI構造に合わせて src/ma_tool/api/endpoints/ に追加し、テンプレは src/ma_tool/templates/ に追加する。
+
+8. 受け入れ条件（この状態まで作る）
+
+UIでイベント（OC等）を作成できる
+
+イベント詳細画面で「参加者（リード）」を検索して追加できる
+
+シナリオで「基準日＝イベント日程」「遅延=-7日」を設定できる
+
+該当イベント日の7日前に、紐付いた参加者に送信対象が生成される
+
+event_date未設定問題は起きない（イベント側に必須なので）
+
+既存の登録日基準シナリオはこれまで通り動く
+
+Alembic migration が追加され、DB更新できる
+
+uv run python -m uvicorn ... で起動し、UIが表示される
+
+9. 実装上の注意（セキュリティ/運用）
+
+入力検証（event_dateの形式、title必須、XSS対策のエスケープ）
+
+権限はPoCなので未実装でもOKだが、Secretsなど重要情報はUIに出さない
+
+参加者検索は件数が増えるのでlimit付き（例：最大20件）にする
+
+10. 既存ファイルへの影響範囲（目安）
+
+models追加：src/ma_tool/models/event.py など
+
+migration追加：alembic/versions/*_add_events_and_registrations.py
+
+endpoints追加：src/ma_tool/api/endpoints/events.py event_registrations.py
+
+templates追加：ui_events_list.html ui_event_form.html ui_event_detail.html
+
+scheduler抽出ロジック修正：scheduler_api.py or 該当サービス
+
+send_log拡張：event_idを持たせる（必要なら）
+
+出力してほしいもの
+
+実装したファイル一覧と変更点
+
+画面遷移（どこからイベント一覧に行くか。ナビ追加も）
+
+テスト方法（イベント作成→参加者追加→シナリオ作成→送信対象確認）

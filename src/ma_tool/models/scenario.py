@@ -1,9 +1,15 @@
 """Scenario model for Step2 send engine"""
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import String, Integer, Boolean, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.ma_tool.models.base import Base
+
+
+class BaseDateType:
+    LEAD_CREATED_AT = "lead_created_at"
+    EVENT_DATE = "event_date"
 
 
 class Scenario(Base):
@@ -17,6 +23,17 @@ class Scenario(Base):
     frequency_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
     graduation_year_rule: Mapped[str] = mapped_column(Text, nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    base_date_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=BaseDateType.LEAD_CREATED_AT
+    )
+    event_type_filter: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    target_calendar_event_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("calendar_events.id"),
+        nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -30,3 +47,4 @@ class Scenario(Base):
     )
     
     template = relationship("Template", backref="scenarios")
+    target_calendar_event = relationship("CalendarEvent", backref="scenarios")

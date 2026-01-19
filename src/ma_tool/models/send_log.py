@@ -2,7 +2,7 @@
 import enum
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Enum, Text, func
+from sqlalchemy import String, Integer, DateTime, ForeignKey, Enum, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.ma_tool.models.base import Base
@@ -22,10 +22,19 @@ class SendChannel(str, enum.Enum):
 
 class SendLog(Base):
     __tablename__ = "send_logs"
+    __table_args__ = (
+        UniqueConstraint('lead_id', 'scenario_id', 'calendar_event_id', name='uq_lead_scenario_calendar_event'),
+    )
     
     id: Mapped[int] = mapped_column(primary_key=True)
     lead_id: Mapped[int] = mapped_column(Integer, ForeignKey("leads.id"), nullable=False, index=True)
     scenario_id: Mapped[int] = mapped_column(Integer, ForeignKey("scenarios.id"), nullable=False, index=True)
+    calendar_event_id: Mapped[Optional[int]] = mapped_column(
+        Integer, 
+        ForeignKey("calendar_events.id"), 
+        nullable=True, 
+        index=True
+    )
     channel: Mapped[SendChannel] = mapped_column(
         Enum(SendChannel),
         nullable=False,
@@ -51,3 +60,4 @@ class SendLog(Base):
     
     lead = relationship("Lead", backref="send_logs")
     scenario = relationship("Scenario", backref="send_logs")
+    calendar_event = relationship("CalendarEvent", backref="send_logs")
