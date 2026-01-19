@@ -1,18 +1,20 @@
 """APScheduler-based scenario runner with rate limiting and retry"""
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, and_, update, or_
 from sqlalchemy.orm import Session
 
 from src.ma_tool.database import SessionLocal
 from src.ma_tool.models.send_log import SendLog, SendStatus
-from src.ma_tool.models.scenario import Scenario
+from src.ma_tool.models.scenario import Scenario, BaseDateType
 from src.ma_tool.models.lead import Lead
 from src.ma_tool.models.template import Template
 from src.ma_tool.models.event import Event
+from src.ma_tool.models.calendar_event import CalendarEvent
+from src.ma_tool.models.lead_event_registration import LeadEventRegistration, RegistrationStatus
 from src.ma_tool.services.email import EmailService, EmailMessage, get_email_service
 from src.ma_tool.services.audit import log_action
 from sqlalchemy.exc import IntegrityError
@@ -145,6 +147,133 @@ def send_single_email(
         return False
 
 
+def process_event_date_scenarios(db: Session, now: Optional[datetime] = None) -> int:
+    """Process scenarios based on event_date (calendar event date)."""
+    if now is None:
+        now = datetime.now(JST)
+    
+    today = now.date()
+    
+    stmt = select(Scenario).where(
+        and_(
+            Scenario.is_enabled == True,
+            Scenario.base_date_type == BaseDateType.EVENT_DATE
+        )
+    )
+    scenarios = list(db.execute(stmt).scalars().all())
+    
+    created_count = 0
+    for scenario in scenarios:
+        event_query = select(CalendarEvent).where(
+            and_(
+                CalendarEvent.is_active == True,
+                CalendarEvent.event_date >= today - timedelta(days=30),
+                CalendarEvent.event_date <= today + timedelta(days=90)
+            )
+        )
+        
+        if scenario.target_calendar_event_id:
+            event_query = event_query.where(CalendarEvent.id == scenario.target_calendar_event_id)
+        elif scenario.event_type_filter:
+            event_query = event_query.where(CalendarEvent.event_type == scenario.event_type_filter)
+        
+        calendar_events = list(db.execute(event_query).scalars().all())
+        
+        for cal_event in calendar_events:
+            send_date = cal_event.event_date + timedelta(days=scenario.delay_days)
+            
+            if send_date > today:
+                continue
+            if send_date < today - timedelta(days=1):
+                continue
+            
+            reg_stmt = select(LeadEventRegistration).where(
+                and_(
+                    LeadEventRegistration.calendar_event_id == cal_event.id,
+                    LeadEventRegistration.status.in_([
+                        RegistrationStatus.SCHEDULED,
+                        RegistrationStatus.ATTENDED
+                    ])
+                )
+            )
+            registrations = list(db.execute(reg_stmt).scalars().all())
+            
+            for reg in registrations:
+                lead = db.get(Lead, reg.lead_id)
+                if not lead:
+                    continue
+                
+                if not lead.consent_given or lead.unsubscribed:
+                    continue
+                
+                if scenario.graduation_year_rule:
+                    import json
+                    try:
+                        rule = json.loads(scenario.graduation_year_rule)
+                        if "exact" in rule and lead.graduation_year != rule["exact"]:
+                            continue
+                        if "min" in rule and lead.graduation_year and lead.graduation_year < rule["min"]:
+                            continue
+                        if "max" in rule and lead.graduation_year and lead.graduation_year > rule["max"]:
+                            continue
+                    except:
+                        pass
+                
+                scheduled_for = datetime.combine(send_date, datetime.min.time().replace(hour=9))
+                scheduled_for = scheduled_for.replace(tzinfo=JST)
+                
+                settings = get_settings()
+                existing = db.execute(
+                    select(SendLog).where(
+                        and_(
+                            SendLog.lead_id == lead.id,
+                            SendLog.scenario_id == scenario.id,
+                            SendLog.calendar_event_id == cal_event.id
+                        )
+                    )
+                ).scalar_one_or_none()
+                
+                if existing:
+                    continue
+                
+                try:
+                    send_log = SendLog(
+                        lead_id=lead.id,
+                        scenario_id=scenario.id,
+                        calendar_event_id=cal_event.id,
+                        status=SendStatus.SCHEDULED,
+                        scheduled_for=scheduled_for,
+                        channel="email"
+                    )
+                    db.add(send_log)
+                    db.commit()
+                    created_count += 1
+                    
+                    log_action(
+                        db=db,
+                        action="send_log_reserved_event_based",
+                        actor_id=None,
+                        actor_role_snapshot="system",
+                        target_type="send_log",
+                        target_id=send_log.id,
+                        details={
+                            "lead_id": lead.id,
+                            "scenario_id": scenario.id,
+                            "calendar_event_id": cal_event.id,
+                            "scheduled_for": scheduled_for.isoformat()
+                        }
+                    )
+                    db.commit()
+                except IntegrityError:
+                    db.rollback()
+                    logger.debug(f"Skipping duplicate: lead={lead.id}, scenario={scenario.id}, event={cal_event.id}")
+                except Exception as e:
+                    db.rollback()
+                    logger.warning(f"Error creating event-based send_log: {e}")
+    
+    return created_count
+
+
 def process_new_events(db: Session, now: Optional[datetime] = None) -> int:
     if now is None:
         now = datetime.now(JST)
@@ -207,7 +336,11 @@ def run_scheduler_tick():
     try:
         created = process_new_events(db, now)
         if created > 0:
-            logger.info(f"Created {created} new send_log reservations")
+            logger.info(f"Created {created} new send_log reservations (lead_created_at based)")
+        
+        event_created = process_event_date_scenarios(db, now)
+        if event_created > 0:
+            logger.info(f"Created {event_created} new send_log reservations (event_date based)")
         
         email_service = get_email_service()
         pending = get_pending_send_logs(db, now, limit=rate_limit)
@@ -239,6 +372,7 @@ def run_scheduler_tick():
             target_id=None,
             details={
                 "reservations_created": created,
+                "event_reservations_created": event_created,
                 "sent": sent_count,
                 "failed": failed_count
             }

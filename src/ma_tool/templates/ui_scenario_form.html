@@ -53,8 +53,8 @@
                             <div class="mb-3">
                                 <label class="form-label">遅延日数</label>
                                 <input type="number" name="delay_days" class="form-control" 
-                                       value="{{ scenario.delay_days if scenario else 0 }}" min="0">
-                                <div class="form-text">イベント発生から何日後に送信</div>
+                                       value="{{ scenario.delay_days if scenario else 0 }}" min="-365" max="365">
+                                <div class="form-text">基準日から何日後に送信（マイナスで事前送信）</div>
                             </div>
                         </div>
                         <div class="col-md-6">
