@@ -76,6 +76,72 @@
                         </div>
                     </div>
 
+                    <hr class="my-4">
+                    <h6 class="mb-3"><i class="bi bi-calendar-event me-1"></i>基準日設定</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">基準日タイプ</label>
+                        <select name="base_date_type" class="form-select" id="base_date_type" onchange="toggleEventFields()">
+                            <option value="lead_created_at" {% if not scenario or scenario.base_date_type == 'lead_created_at' %}selected{% endif %}>
+                                リード登録日（従来方式）
+                            </option>
+                            <option value="event_date" {% if scenario and scenario.base_date_type == 'event_date' %}selected{% endif %}>
+                                イベント日程（OC等）
+                            </option>
+                        </select>
+                        <div class="form-text">
+                            「イベント日程」を選択すると、イベントに紐付いた参加者に対してイベント日基準で送信されます。
+                        </div>
+                    </div>
+                    
+                    <div id="event-fields" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">対象イベント種別</label>
+                            <select name="event_type_filter" class="form-select">
+                                <option value="">すべての種別</option>
+                                {% for val, label in calendar_event_types %}
+                                <option value="{{ val }}" {% if scenario and scenario.event_type_filter == val %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                特定の種別のイベントのみを対象にする場合に選択
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">特定イベント（任意）</label>
+                            <select name="target_calendar_event_id" class="form-select">
+                                <option value="">種別で絞り込み（上記設定を使用）</option>
+                                {% for e in calendar_events %}
+                                <option value="{{ e.id }}" {% if scenario and scenario.target_calendar_event_id == e.id %}selected{% endif %}>
+                                    {{ e.event_date.strftime('%Y/%m/%d') }} - {{ e.title }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                特定の1つのイベントのみを対象にする場合に選択
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-1"></i>
+                            <strong>イベント日程基準の例：</strong><br>
+                            遅延日数を <code>-7</code> にすると、イベント日の7日前に送信されます。<br>
+                            遅延日数を <code>1</code> にすると、イベント翌日に送信されます。
+                        </div>
+                    </div>
+                    
+                    <script>
+                    function toggleEventFields() {
+                        var baseType = document.getElementById('base_date_type').value;
+                        var eventFields = document.getElementById('event-fields');
+                        eventFields.style.display = (baseType === 'event_date') ? 'block' : 'none';
+                    }
+                    document.addEventListener('DOMContentLoaded', toggleEventFields);
+                    </script>
+
                     <div class="mb-3">
                         <div class="form-check">
                             <input type="checkbox" name="is_enabled" class="form-check-input" id="is_enabled"

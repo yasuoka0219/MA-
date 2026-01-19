@@ -9,14 +9,23 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from src.ma_tool.database import get_db
-from src.ma_tool.models.scenario import Scenario
+from src.ma_tool.models.scenario import Scenario, BaseDateType
 from src.ma_tool.models.template import Template, TemplateStatus, ChannelType
 from src.ma_tool.models.lead import Lead
 from src.ma_tool.models.event import Event
+from src.ma_tool.models.calendar_event import CalendarEvent
 from src.ma_tool.models.user import User, UserRole
 from src.ma_tool.models.audit_log import AuditLog
 from src.ma_tool.api.deps import require_session_login
 from src.ma_tool.config import settings
+
+CALENDAR_EVENT_TYPES = [
+    ("oc", "オープンキャンパス"),
+    ("briefing", "説明会"),
+    ("interview", "面談"),
+    ("tour", "見学会"),
+    ("other", "その他"),
+]
 
 router = APIRouter(prefix="/ui", tags=["UI Scenarios"])
 templates = Jinja2Templates(directory="src/ma_tool/templates")
@@ -97,12 +106,20 @@ async def scenario_new(
         select(Event.type).distinct()
     ).scalars().all()
     
+    calendar_events = db.execute(
+        select(CalendarEvent)
+        .where(CalendarEvent.is_active == True)
+        .order_by(CalendarEvent.event_date.desc())
+    ).scalars().all()
+    
     return templates.TemplateResponse("ui_scenario_form.html", {
         **get_base_context(request, user),
         "scenario": None,
         "is_new": True,
         "approved_templates": approved_templates,
         "event_types": event_types,
+        "calendar_event_types": CALENDAR_EVENT_TYPES,
+        "calendar_events": calendar_events,
     })
 
 
@@ -116,6 +133,9 @@ async def scenario_create(
     frequency_days: int = Form(7),
     graduation_year_rule: Optional[str] = Form(None),
     is_enabled: bool = Form(False),
+    base_date_type: str = Form(BaseDateType.LEAD_CREATED_AT),
+    event_type_filter: Optional[str] = Form(None),
+    target_calendar_event_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
 ):
@@ -130,6 +150,9 @@ async def scenario_create(
         frequency_days=frequency_days,
         graduation_year_rule=graduation_year_rule,
         is_enabled=is_enabled and not settings.is_production,
+        base_date_type=base_date_type,
+        event_type_filter=event_type_filter or None,
+        target_calendar_event_id=target_calendar_event_id or None,
     )
     db.add(scenario)
     db.commit()
@@ -160,6 +183,12 @@ async def scenario_detail(
         select(Event.type).distinct()
     ).scalars().all()
     
+    calendar_events = db.execute(
+        select(CalendarEvent)
+        .where(CalendarEvent.is_active == True)
+        .order_by(CalendarEvent.event_date.desc())
+    ).scalars().all()
+    
     return templates.TemplateResponse("ui_scenario_form.html", {
         **get_base_context(request, user),
         "scenario": scenario,
@@ -167,6 +196,8 @@ async def scenario_detail(
         "is_new": False,
         "approved_templates": approved_templates,
         "event_types": event_types,
+        "calendar_event_types": CALENDAR_EVENT_TYPES,
+        "calendar_events": calendar_events,
         "can_edit": can_edit(user),
     })
 
@@ -182,6 +213,9 @@ async def scenario_update(
     frequency_days: int = Form(7),
     graduation_year_rule: Optional[str] = Form(None),
     is_enabled: bool = Form(False),
+    base_date_type: str = Form(BaseDateType.LEAD_CREATED_AT),
+    event_type_filter: Optional[str] = Form(None),
+    target_calendar_event_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
 ):
@@ -201,6 +235,9 @@ async def scenario_update(
     scenario.frequency_days = frequency_days
     scenario.graduation_year_rule = graduation_year_rule or ""
     scenario.is_enabled = is_enabled
+    scenario.base_date_type = base_date_type
+    scenario.event_type_filter = event_type_filter or None
+    scenario.target_calendar_event_id = target_calendar_event_id or None
     scenario.updated_at = datetime.now(timezone.utc)
     db.commit()
     
