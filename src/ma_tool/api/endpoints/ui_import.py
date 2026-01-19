@@ -104,7 +104,7 @@ async def import_confirm(
         return redirect
     
     try:
-        result = execute_import(session_id)
+        result = execute_import(db, session_id, user)
     except KeyError:
         return templates.TemplateResponse("ui_import.html", {
             **get_base_context(request, user),
