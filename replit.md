@@ -15,7 +15,8 @@ The MA tool is built upon a modern web stack using FastAPI for the API, PostgreS
   - **Leads Management:** Search, filter by graduation year, view lead details, and manage LINE identity links at `/ui/leads`.
   - **LINE Identity Management:** View all LINE identities, link/unlink leads, with full audit logging at `/ui/line-identities`.
   - **Template Management:** Create, edit, clone templates with LINE support (Flex Message JSON), submit for approval, approve/reject workflows, and test send functionality (dev/staging only) at `/ui/templates`.
-  - **Scenario Management:** Create and manage scenarios with target preview showing eligible leads count at `/ui/scenarios`.
+  - **Scenario Management:** Create and manage scenarios with target preview showing eligible leads count at `/ui/scenarios`. Supports both lead-creation-based and event-date-based scheduling.
+  - **Event Management:** Create and manage calendar events (Open Campus, briefings, etc.) with participant registration at `/ui/events`. Events can be linked to scenarios for event-date-based email scheduling (e.g., send reminder 7 days before event).
   - **Send Logs:** View all message delivery logs with multi-filter support (status, channel, scenario, graduation year) at `/ui/send-logs`.
   - **Environment Banner:** Shows current environment (DEV/STAGING/PRODUCTION) for safety awareness.
   - **Toast Notifications:** Real-time feedback via HTMX triggers.
@@ -36,7 +37,9 @@ The MA tool is built upon a modern web stack using FastAPI for the API, PostgreS
   - `{{ line_friend_add_url }}` - For directing users to university's official LINE account
 - **Graduation Year Estimation:** Automatically infers graduation year from `grade_label` in CSV data if `graduation_year` is missing.
 - **Messaging Service Abstraction:** Decouples message sending logic from specific providers (Email via SendGrid, LINE via Messaging API), supporting multi-channel delivery.
-- **Scenario Execution Engine:** APScheduler runs every 5 minutes to evaluate scenarios, identify eligible leads based on consent, unsubscribe status, approved templates, graduation year rules (e.g., `within_months`), frequency limits, and prevents duplicate sends.
+- **Scenario Execution Engine:** APScheduler runs every 5 minutes to evaluate scenarios, identify eligible leads based on consent, unsubscribe status, approved templates, graduation year rules (e.g., `within_months`), frequency limits, and prevents duplicate sends. Supports two base date types:
+  - `lead_created_at`: Traditional trigger-based scheduling (send X days after lead registration)
+  - `event_date`: Event-based scheduling (send X days before/after calendar event date for registered participants)
 - **Email Tracking:** Implements 1x1 pixel tracking for email opens.
 - **Template Approval Workflow:** Templates transition through `draft`, `pending`, `approved`, and `rejected` states, ensuring content quality and preventing unauthorized modifications to approved templates.
 - **Role-Based Access Control (RBAC):** Differentiates user permissions (admin, editor, approver, viewer) for various operations on templates and other features.
@@ -47,7 +50,8 @@ The MA tool is built upon a modern web stack using FastAPI for the API, PostgreS
 **System Design Choices:**
 - **Modular Project Structure:** Organized into `api`, `models`, `schemas`, and `services` to enhance maintainability and separation of concerns.
 - **Robust CSV Handling:** Supports automatic character encoding detection and detailed validation for imported data, including hard (error) and soft (warning) mandatory fields.
-- **Unique Constraint for Sends:** `send_logs` table enforces uniqueness on `lead_id`, `scenario_id`, and `event_id` to prevent duplicate emails for the same trigger.
+- **Unique Constraint for Sends:** `send_logs` table enforces uniqueness on `lead_id`, `scenario_id`, and `event_id` (or `calendar_event_id` for event-based scenarios) to prevent duplicate emails for the same trigger.
+- **Event Types:** Supports multiple event types: Open Campus (oc), briefings, interviews, tours, and other custom types.
 
 ## Environment Variables
 - `APP_ENV` - Environment: dev, staging, or prod
