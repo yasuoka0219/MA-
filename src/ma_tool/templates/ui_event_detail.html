@@ -1,0 +1,190 @@
+{% extends "ui_base.html" %}
+
+{% block title %}{{ event.title }} - MA Tool{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/ui/events">イベント一覧</a></li>
+            <li class="breadcrumb-item active">{{ event.title }}</li>
+        </ol>
+    </nav>
+    <div class="d-flex justify-content-between align-items-center">
+        <h2>
+            <i class="bi bi-calendar-event me-2"></i>{{ event.title }}
+            {% if event.is_active %}
+            <span class="badge bg-success fs-6">有効</span>
+            {% else %}
+            <span class="badge bg-secondary fs-6">無効</span>
+            {% endif %}
+        </h2>
+        {% if can_edit %}
+        <a href="/ui/events/{{ event.id }}/edit" class="btn btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>編集
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">イベント情報</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">日程</dt>
+                    <dd class="col-sm-9">{{ event.event_date.strftime('%Y年%m月%d日') }}</dd>
+                    
+                    <dt class="col-sm-3">種別</dt>
+                    <dd class="col-sm-9">
+                        {% for val, label in event_types %}
+                            {% if event.event_type == val %}{{ label }}{% endif %}
+                        {% endfor %}
+                    </dd>
+                    
+                    <dt class="col-sm-3">場所</dt>
+                    <dd class="col-sm-9">{{ event.location or '未設定' }}</dd>
+                    
+                    <dt class="col-sm-3">備考</dt>
+                    <dd class="col-sm-9">{{ event.notes or 'なし' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">統計</h5>
+            </div>
+            <div class="card-body text-center">
+                <h1 class="display-4 text-primary">{{ registrations|length }}</h1>
+                <p class="text-muted mb-0">参加者数</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-people me-2"></i>参加者管理</h5>
+    </div>
+    <div class="card-body">
+        {% if can_edit %}
+        <form method="get" action="/ui/events/{{ event.id }}" class="mb-4">
+            <div class="row g-2">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" 
+                               placeholder="リード検索（名前、メール、ID）" value="{{ search }}">
+                        <button type="submit" class="btn btn-primary">検索</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+        
+        {% if search_results %}
+        <div class="mb-4">
+            <h6>検索結果（{{ search_results|length }}件）</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>名前</th>
+                            <th>メール</th>
+                            <th>卒年</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in search_results %}
+                        <tr>
+                            <td>{{ lead.name }}</td>
+                            <td>{{ lead.email }}</td>
+                            <td>{{ lead.graduation_year or '-' }}</td>
+                            <td>
+                                <form method="post" action="/ui/events/{{ event.id }}/registrations/add" class="d-inline">
+                                    <input type="hidden" name="lead_id" value="{{ lead.id }}">
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="bi bi-plus-lg"></i> 追加
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% elif search %}
+        <div class="alert alert-info mb-4">検索結果がありません</div>
+        {% endif %}
+        {% endif %}
+        
+        <h6>登録済み参加者（{{ registrations|length }}名）</h6>
+        {% if registrations %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>名前</th>
+                        <th>メール</th>
+                        <th>卒年</th>
+                        <th>ステータス</th>
+                        <th>登録日時</th>
+                        {% if can_edit %}<th>操作</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in registrations %}
+                    {% set lead = leads_map.get(reg.lead_id) %}
+                    <tr>
+                        <td>
+                            {% if lead %}
+                            <a href="/ui/leads?search={{ lead.email }}">{{ lead.name }}</a>
+                            {% else %}
+                            <span class="text-muted">削除済み</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ lead.email if lead else '-' }}</td>
+                        <td>{{ lead.graduation_year if lead else '-' }}</td>
+                        <td>
+                            {% if can_edit %}
+                            <form method="post" action="/ui/events/{{ event.id }}/registrations/{{ reg.id }}/status" class="d-inline">
+                                <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                                    {% for val, label in status_options %}
+                                    <option value="{{ val }}" {% if reg.status == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            {% else %}
+                            {% for val, label in status_options %}
+                                {% if reg.status == val %}{{ label }}{% endif %}
+                            {% endfor %}
+                            {% endif %}
+                        </td>
+                        <td>{{ reg.created_at.strftime('%Y/%m/%d %H:%M') }}</td>
+                        {% if can_edit %}
+                        <td>
+                            <form method="post" action="/ui/events/{{ event.id }}/registrations/{{ reg.id }}/remove" 
+                                  onsubmit="return confirm('この参加者を削除しますか？')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">参加者がいません。上の検索ボックスからリードを追加してください。</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

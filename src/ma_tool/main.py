@@ -8,7 +8,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from src.ma_tool.api.endpoints import health, csv_import, unsubscribe, scheduler_api, tracking, templates, views, dashboard, line_webhook
-from src.ma_tool.api.endpoints import ui_auth, ui_leads, ui_line, ui_templates, ui_scenarios, ui_sendlogs, ui_import, ui_dashboard
+from src.ma_tool.api.endpoints import ui_auth, ui_leads, ui_line, ui_templates, ui_scenarios, ui_sendlogs, ui_import, ui_dashboard, ui_events
 from src.ma_tool.config import settings
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,7 @@ app.include_router(ui_templates.router)
 app.include_router(ui_scenarios.router)
 app.include_router(ui_sendlogs.router)
 app.include_router(ui_import.router)
+app.include_router(ui_events.router)
 
 
 @app.get("/")

@@ -1,0 +1,75 @@
+{% extends "ui_base.html" %}
+
+{% block title %}{% if is_new %}イベント作成{% else %}イベント編集{% endif %} - MA Tool{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/ui/events">イベント一覧</a></li>
+            <li class="breadcrumb-item active">{% if is_new %}新規作成{% else %}編集{% endif %}</li>
+        </ol>
+    </nav>
+    <h2><i class="bi bi-calendar-event me-2"></i>{% if is_new %}イベント作成{% else %}イベント編集{% endif %}</h2>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-body">
+        <form method="post" action="{% if is_new %}/ui/events/new{% else %}/ui/events/{{ event.id }}/edit{% endif %}">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">種別 <span class="text-danger">*</span></label>
+                    <select name="event_type" class="form-select" required>
+                        {% for val, label in event_types %}
+                        <option value="{{ val }}" {% if event and event.event_type == val %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">日程 <span class="text-danger">*</span></label>
+                    <input type="date" name="event_date" class="form-control" required
+                           value="{% if event %}{{ event.event_date.strftime('%Y-%m-%d') }}{% endif %}">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">タイトル <span class="text-danger">*</span></label>
+                <input type="text" name="title" class="form-control" required
+                       value="{{ event.title if event else '' }}" placeholder="例: 3/15 オープンキャンパス">
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">場所</label>
+                <input type="text" name="location" class="form-control"
+                       value="{{ event.location if event else '' }}" placeholder="例: 本キャンパス 講堂">
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">備考</label>
+                <textarea name="notes" class="form-control" rows="3" placeholder="メモや注意事項など">{{ event.notes if event else '' }}</textarea>
+            </div>
+            
+            <div class="mb-3">
+                <div class="form-check">
+                    <input type="checkbox" name="is_active" class="form-check-input" id="is_active" value="true"
+                           {% if is_new or (event and event.is_active) %}checked{% endif %}>
+                    <label class="form-check-label" for="is_active">有効</label>
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-lg me-1"></i>{% if is_new %}作成{% else %}更新{% endif %}
+                </button>
+                <a href="{% if is_new %}/ui/events{% else %}/ui/events/{{ event.id }}{% endif %}" class="btn btn-outline-secondary">
+                    キャンセル
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
