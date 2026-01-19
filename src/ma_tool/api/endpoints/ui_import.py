@@ -122,9 +122,10 @@ async def import_confirm(
             "result": None,
         })
     
+    error_count = len(result.errors)
     log_action(
         db, user, "import_csv", "leads", None,
-        {"added": result.added_count, "updated": result.updated_count, "errors": result.error_count}
+        {"added": result.added, "updated": result.updated, "errors": error_count}
     )
     
     response = templates.TemplateResponse("ui_import.html", {
@@ -135,9 +136,9 @@ async def import_confirm(
     })
     response.headers["HX-Trigger"] = json.dumps({
         "showToast": {
-            "type": "success" if result.error_count == 0 else "warning",
-            "message": f"インポート完了: 追加 {result.added_count}件、更新 {result.updated_count}件"
-            + (f"、エラー {result.error_count}件" if result.error_count > 0 else "")
+            "type": "success" if error_count == 0 else "warning",
+            "message": f"インポート完了: 追加 {result.added}件、更新 {result.updated}件"
+            + (f"、エラー {error_count}件" if error_count > 0 else "")
         }
     })
     return response
