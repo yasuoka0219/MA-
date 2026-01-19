@@ -74,27 +74,62 @@
     <div class="card-body">
         {% if can_edit %}
         <form method="get" action="/ui/events/{{ event.id }}" class="mb-4">
-            <div class="row g-2">
-                <div class="col-md-6">
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" name="search" class="form-control" 
-                               placeholder="リード検索（名前、メール、ID）" value="{{ search }}">
-                        <button type="submit" class="btn btn-primary">検索</button>
-                    </div>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small">キーワード検索</label>
+                    <input type="text" name="search" class="form-control" 
+                           placeholder="名前、メール、ID" value="{{ search }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">卒業年度</label>
+                    <select name="grad_year" class="form-select">
+                        <option value="">すべて</option>
+                        {% for year in available_years %}
+                        <option value="{{ year }}" {% if grad_year == year|string %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">同意済のみ</label>
+                    <select name="consent_only" class="form-select">
+                        <option value="1" {% if consent_only %}selected{% endif %}>同意済のみ</option>
+                        <option value="" {% if not consent_only %}selected{% endif %}>すべて</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search me-1"></i>検索
+                    </button>
                 </div>
             </div>
         </form>
         
         {% if search_results %}
         <div class="mb-4">
-            <h6>検索結果（{{ search_results|length }}件）</h6>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0">検索結果（{{ search_results|length }}件）</h6>
+                {% if search_results|length > 0 %}
+                <form method="post" action="/ui/events/{{ event.id }}/registrations/bulk-add" id="bulk-add-form">
+                    <input type="hidden" name="lead_ids" id="selected-lead-ids" value="">
+                    <button type="button" class="btn btn-success btn-sm" onclick="bulkAddSelected()" id="bulk-add-btn" disabled>
+                        <i class="bi bi-plus-lg me-1"></i>選択したリードを一括追加（<span id="selected-count">0</span>件）
+                    </button>
+                    <button type="button" class="btn btn-outline-success btn-sm ms-2" onclick="selectAllLeads()">
+                        <i class="bi bi-check-all me-1"></i>全て選択
+                    </button>
+                </form>
+                {% endif %}
+            </div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover">
                     <thead class="table-light">
                         <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" class="form-check-input" id="select-all-checkbox" onchange="toggleSelectAll(this)">
+                            </th>
                             <th>名前</th>
                             <th>メール</th>
+                            <th>高校</th>
                             <th>卒年</th>
                             <th>操作</th>
                         </tr>
@@ -102,14 +137,19 @@
                     <tbody>
                         {% for lead in search_results %}
                         <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input lead-checkbox" 
+                                       value="{{ lead.id }}" onchange="updateSelectedCount()">
+                            </td>
                             <td>{{ lead.name }}</td>
                             <td>{{ lead.email }}</td>
+                            <td>{{ lead.school_name or '-' }}</td>
                             <td>{{ lead.graduation_year or '-' }}</td>
                             <td>
                                 <form method="post" action="/ui/events/{{ event.id }}/registrations/add" class="d-inline">
                                     <input type="hidden" name="lead_id" value="{{ lead.id }}">
                                     <button type="submit" class="btn btn-sm btn-success">
-                                        <i class="bi bi-plus-lg"></i> 追加
+                                        <i class="bi bi-plus-lg"></i>
                                     </button>
                                 </form>
                             </td>
@@ -119,7 +159,40 @@
                 </table>
             </div>
         </div>
-        {% elif search %}
+        
+        <script>
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
+            const count = checkboxes.length;
+            document.getElementById('selected-count').textContent = count;
+            document.getElementById('bulk-add-btn').disabled = count === 0;
+        }
+        
+        function toggleSelectAll(masterCheckbox) {
+            const checkboxes = document.querySelectorAll('.lead-checkbox');
+            checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+            updateSelectedCount();
+        }
+        
+        function selectAllLeads() {
+            const checkboxes = document.querySelectorAll('.lead-checkbox');
+            checkboxes.forEach(cb => cb.checked = true);
+            document.getElementById('select-all-checkbox').checked = true;
+            updateSelectedCount();
+        }
+        
+        function bulkAddSelected() {
+            const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
+            const ids = Array.from(checkboxes).map(cb => cb.value);
+            if (ids.length === 0) {
+                alert('リードを選択してください');
+                return;
+            }
+            document.getElementById('selected-lead-ids').value = ids.join(',');
+            document.getElementById('bulk-add-form').submit();
+        }
+        </script>
+        {% elif search or grad_year %}
         <div class="alert alert-info mb-4">検索結果がありません</div>
         {% endif %}
         {% endif %}

@@ -170,6 +170,8 @@ async def event_detail(
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
     search: Optional[str] = Query(None),
+    grad_year: Optional[str] = Query(None),
+    consent_only: Optional[str] = Query(None),
 ):
     event = db.get(CalendarEvent, event_id)
     if not event:
@@ -187,19 +189,44 @@ async def event_detail(
         leads = db.execute(select(Lead).where(Lead.id.in_(lead_ids))).scalars().all()
         leads_map = {l.id: l for l in leads}
     
+    available_years = db.execute(
+        select(Lead.graduation_year)
+        .where(Lead.graduation_year.isnot(None))
+        .distinct()
+        .order_by(Lead.graduation_year.desc())
+    ).scalars().all()
+    
     search_results = []
-    if search:
-        search_results = db.execute(
-            select(Lead)
-            .where(
+    has_filter = search or grad_year
+    if has_filter:
+        query = select(Lead)
+        conditions = []
+        
+        if search:
+            conditions.append(
                 or_(
                     Lead.name.ilike(f"%{search}%"),
                     Lead.email.ilike(f"%{search}%"),
                     Lead.external_id.ilike(f"%{search}%") if hasattr(Lead, 'external_id') else False
                 )
             )
-            .limit(20)
-        ).scalars().all()
+        
+        if grad_year:
+            try:
+                conditions.append(Lead.graduation_year == int(grad_year))
+            except ValueError:
+                pass
+        
+        if consent_only:
+            conditions.append(Lead.consent_given == True)
+            conditions.append(Lead.unsubscribed == False)
+        
+        if conditions:
+            from sqlalchemy import and_
+            query = query.where(and_(*conditions))
+        
+        query = query.order_by(Lead.graduation_year.desc(), Lead.name).limit(100)
+        search_results = db.execute(query).scalars().all()
         search_results = [l for l in search_results if l.id not in lead_ids]
     
     return templates.TemplateResponse("ui_event_detail.html", {
@@ -208,6 +235,9 @@ async def event_detail(
         "registrations": registrations,
         "leads_map": leads_map,
         "search": search or "",
+        "grad_year": grad_year or "",
+        "consent_only": bool(consent_only),
+        "available_years": available_years,
         "search_results": search_results,
         "event_types": EVENT_TYPE_OPTIONS,
         "status_options": [
@@ -339,6 +369,56 @@ async def add_registration(
         db.add(reg)
         db.commit()
         create_audit_log(db, user, "add_registration", "calendar_event", event_id, {"lead_id": lead_id})
+    
+    return RedirectResponse(url=f"/ui/events/{event_id}", status_code=302)
+
+
+@router.post("/events/{event_id}/registrations/bulk-add")
+async def bulk_add_registrations(
+    event_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_session_login),
+    lead_ids: str = Form(...),
+):
+    if not can_edit(user):
+        return RedirectResponse(url=f"/ui/events/{event_id}", status_code=302)
+    
+    event = db.get(CalendarEvent, event_id)
+    if not event:
+        return RedirectResponse(url="/ui/events", status_code=302)
+    
+    added_count = 0
+    for lead_id_str in lead_ids.split(","):
+        try:
+            lead_id = int(lead_id_str.strip())
+        except ValueError:
+            continue
+        
+        lead = db.get(Lead, lead_id)
+        if not lead:
+            continue
+        
+        existing = db.execute(
+            select(LeadEventRegistration)
+            .where(
+                LeadEventRegistration.calendar_event_id == event_id,
+                LeadEventRegistration.lead_id == lead_id
+            )
+        ).scalar_one_or_none()
+        
+        if not existing:
+            reg = LeadEventRegistration(
+                lead_id=lead_id,
+                calendar_event_id=event_id,
+                status=RegistrationStatus.SCHEDULED,
+            )
+            db.add(reg)
+            added_count += 1
+    
+    db.commit()
+    
+    if added_count > 0:
+        create_audit_log(db, user, "bulk_add_registration", "calendar_event", event_id, {"count": added_count})
     
     return RedirectResponse(url=f"/ui/events/{event_id}", status_code=302)
 
