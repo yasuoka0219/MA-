@@ -34,6 +34,14 @@ class Scenario(Base):
         ForeignKey("calendar_events.id"),
         nullable=True
     )
+    
+    segment_graduation_year_from: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    segment_graduation_year_to: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    segment_grade_in: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    segment_prefecture: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    segment_tag: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    segment_school_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -48,3 +56,34 @@ class Scenario(Base):
     
     template = relationship("Template", backref="scenarios")
     target_calendar_event = relationship("CalendarEvent", backref="scenarios")
+    
+    def has_segment_conditions(self) -> bool:
+        """Check if any segment conditions are set"""
+        return any([
+            self.segment_graduation_year_from,
+            self.segment_graduation_year_to,
+            self.segment_grade_in,
+            self.segment_prefecture,
+            self.segment_tag,
+            self.segment_school_name,
+        ])
+    
+    def get_segment_summary(self) -> str:
+        """Get a short summary of segment conditions"""
+        parts = []
+        if self.segment_graduation_year_from or self.segment_graduation_year_to:
+            from_year = self.segment_graduation_year_from or "〜"
+            to_year = self.segment_graduation_year_to or "〜"
+            if from_year == to_year:
+                parts.append(f"卒年:{from_year}")
+            else:
+                parts.append(f"卒年:{from_year}-{to_year}")
+        if self.segment_grade_in:
+            parts.append(f"学年:{self.segment_grade_in}")
+        if self.segment_prefecture:
+            parts.append(f"都道府県:{self.segment_prefecture}")
+        if self.segment_school_name:
+            parts.append(f"高校:{self.segment_school_name}")
+        if self.segment_tag:
+            parts.append(f"タグ:{self.segment_tag}")
+        return " / ".join(parts) if parts else "—"
