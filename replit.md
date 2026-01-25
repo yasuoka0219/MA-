@@ -40,6 +40,13 @@ The MA tool is built upon a modern web stack using FastAPI for the API, PostgreS
 - **Scenario Execution Engine:** APScheduler runs every 5 minutes to evaluate scenarios, identify eligible leads based on consent, unsubscribe status, approved templates, graduation year rules (e.g., `within_months`), frequency limits, and prevents duplicate sends. Supports two base date types:
   - `lead_created_at`: Traditional trigger-based scheduling (send X days after lead registration)
   - `event_date`: Event-based scheduling (send X days before/after calendar event date for registered participants)
+- **Segment Filtering:** Scenarios support advanced targeting conditions to precisely filter recipients:
+  - Graduation year range (from/to)
+  - Grade level (multiple selection: 高1, 高2, 高3, etc.)
+  - Prefecture (都道府県)
+  - School name (partial match)
+  - Interest tags (stored in `Lead.interest_tags`)
+  - Shared filtering logic via `segment_filter.py` ensures consistency between preview and actual sends
 - **Email Tracking:** Implements 1x1 pixel tracking for email opens.
 - **Template Approval Workflow:** Templates transition through `draft`, `pending`, `approved`, and `rejected` states, ensuring content quality and preventing unauthorized modifications to approved templates.
 - **Role-Based Access Control (RBAC):** Differentiates user permissions (admin, editor, approver, viewer) for various operations on templates and other features.
