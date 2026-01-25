@@ -26,17 +26,6 @@ def apply_segment_conditions(
     if scenario.segment_graduation_year_to:
         conditions.append(Lead.graduation_year <= scenario.segment_graduation_year_to)
     
-    if scenario.segment_grade_in:
-        try:
-            grades = json.loads(scenario.segment_grade_in)
-            if isinstance(grades, list) and grades:
-                conditions.append(Lead.grade_label.in_(grades))
-        except (json.JSONDecodeError, TypeError):
-            if scenario.segment_grade_in:
-                conditions.append(Lead.grade_label == scenario.segment_grade_in)
-    
-    if scenario.segment_prefecture:
-        conditions.append(Lead.prefecture == scenario.segment_prefecture)
     
     if scenario.segment_school_name:
         conditions.append(Lead.school_name.ilike(f"%{scenario.segment_school_name}%"))
@@ -54,7 +43,7 @@ def get_base_eligible_leads_query(db: Session, scenario: Optional[Scenario] = No
     """Get base query for eligible leads (consent given, not unsubscribed, valid email)."""
     query = select(Lead).where(
         and_(
-            Lead.consent_given == True,
+            Lead.consent == True,
             Lead.unsubscribed == False,
             Lead.email.isnot(None),
             Lead.email != ""
@@ -74,6 +63,25 @@ def is_valid_email(email: str) -> bool:
         return False
 
 
+def get_status_filter_list(scenario: Scenario) -> list:
+    """Get the list of event statuses to filter by.
+    Returns the configured statuses or defaults to ['scheduled', 'attended'].
+    """
+    default_statuses = [RegistrationStatus.SCHEDULED, RegistrationStatus.ATTENDED]
+    
+    if not scenario.segment_event_status_in:
+        return default_statuses
+    
+    try:
+        statuses = json.loads(scenario.segment_event_status_in)
+        if isinstance(statuses, list) and statuses:
+            return statuses
+    except (json.JSONDecodeError, TypeError):
+        pass
+    
+    return default_statuses
+
+
 def get_target_leads_for_scenario(
     db: Session,
     scenario: Scenario,
@@ -89,13 +97,12 @@ def get_target_leads_for_scenario(
     query = get_base_eligible_leads_query(db, scenario)
     
     if scenario.base_date_type == "event_date" and calendar_event:
+        status_list = get_status_filter_list(scenario)
+        
         reg_stmt = select(LeadEventRegistration.lead_id).where(
             and_(
                 LeadEventRegistration.calendar_event_id == calendar_event.id,
-                LeadEventRegistration.status.in_([
-                    RegistrationStatus.SCHEDULED,
-                    RegistrationStatus.ATTENDED
-                ])
+                LeadEventRegistration.status.in_(status_list)
             )
         )
         registered_lead_ids = [r for r in db.execute(reg_stmt).scalars().all()]
@@ -194,6 +201,14 @@ def get_scenario_preview(
         condition_parts.append(f"高校={scenario.segment_school_name}")
     if scenario.segment_tag:
         condition_parts.append(f"タグ={scenario.segment_tag}")
+    if scenario.segment_event_status_in and scenario.base_date_type == "event_date":
+        try:
+            statuses = json.loads(scenario.segment_event_status_in)
+            status_labels = {"scheduled": "予定", "attended": "参加", "absent": "欠席", "cancelled": "キャンセル"}
+            labels = [status_labels.get(s, s) for s in statuses]
+            condition_parts.append(f"参加ステータス={','.join(labels)}")
+        except (json.JSONDecodeError, TypeError):
+            condition_parts.append(f"参加ステータス={scenario.segment_event_status_in}")
     
     return {
         "total_count": total_count,

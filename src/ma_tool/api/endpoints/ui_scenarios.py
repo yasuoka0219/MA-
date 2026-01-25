@@ -168,6 +168,7 @@ async def scenario_create(
     segment_prefecture: Optional[str] = Form(None),
     segment_school_name: Optional[str] = Form(None),
     segment_tag: Optional[str] = Form(None),
+    segment_event_status_in: Optional[List[str]] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
 ):
@@ -175,6 +176,7 @@ async def scenario_create(
         return RedirectResponse(url="/ui/scenarios", status_code=302)
     
     grade_in_json = json.dumps(segment_grade_in) if segment_grade_in else None
+    status_in_json = json.dumps(segment_event_status_in) if segment_event_status_in else None
     
     scenario = Scenario(
         name=name,
@@ -193,6 +195,7 @@ async def scenario_create(
         segment_prefecture=segment_prefecture or None,
         segment_school_name=segment_school_name or None,
         segment_tag=segment_tag or None,
+        segment_event_status_in=status_in_json,
     )
     db.add(scenario)
     db.commit()
@@ -264,6 +267,7 @@ async def scenario_update(
     segment_prefecture: Optional[str] = Form(None),
     segment_school_name: Optional[str] = Form(None),
     segment_tag: Optional[str] = Form(None),
+    segment_event_status_in: Optional[List[str]] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
 ):
@@ -276,6 +280,7 @@ async def scenario_update(
     
     old_enabled = scenario.is_enabled
     grade_in_json = json.dumps(segment_grade_in) if segment_grade_in else None
+    status_in_json = json.dumps(segment_event_status_in) if segment_event_status_in else None
     
     scenario.name = name
     scenario.template_id = template_id
@@ -293,6 +298,7 @@ async def scenario_update(
     scenario.segment_prefecture = segment_prefecture or None
     scenario.segment_school_name = segment_school_name or None
     scenario.segment_tag = segment_tag or None
+    scenario.segment_event_status_in = status_in_json
     scenario.updated_at = datetime.now(timezone.utc)
     db.commit()
     

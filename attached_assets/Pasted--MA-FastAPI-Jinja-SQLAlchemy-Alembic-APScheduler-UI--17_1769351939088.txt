@@ -1,0 +1,340 @@
+既存のMAツール（FastAPI + Jinja + SQLAlchemy + Alembic + APScheduler）をベースに、以下の機能を追加してください。対象者を手で選ぶUIは作らず、必ず「条件（ルール）」で対象者を絞り込む設計にしてください。既存のシナリオ／CSV取り込み／送信ロジックは壊さず、後方互換を維持してください。
+
+0. ゴール（何を実現するか）
+
+UIで「イベント（OCなど）」を登録できる
+
+イベントに「参加者（リード）」を紐付けできる
+
+参加者ごとに「ステータス（予定/参加/欠席/キャンセル）」を管理できる
+
+シナリオで「イベント条件（特定イベント or event_type）＋参加ステータス＋属性条件（卒業年度/学年など）」で対象者を自動抽出できる
+
+シナリオ詳細で「条件一致候補件数＋サンプル10件」のプレビューを見られる
+
+既存の「登録日基準」「トリガー一致で全員対象」シナリオは従来通り動く
+
+1. データモデル（必須）
+1-1. events（イベントマスタ）を追加
+
+events テーブルを追加する。
+
+id（PK）
+
+event_type（string: oc / 説明会 / 面談 など）
+
+title（string: 例「3/15 OC」）
+
+event_date（date でOK）
+
+location（nullable）
+
+notes（nullable）
+
+is_active（bool, default true）
+
+created_at, updated_at
+
+1-2. event_registrations（参加紐付け）を追加
+
+event_registrations（または lead_event_registrations）を追加する。
+
+id（PK）
+
+lead_id（FK）
+
+event_id（FK）
+
+status（string/enum）
+
+値：planned（予定） / attended（参加） / absent（欠席） / canceled（キャンセル）
+
+デフォルト：planned
+
+created_at, updated_at
+
+ユニーク制約：(lead_id, event_id)（二重登録防止）
+
+※ 既存のleads構造は維持しつつ、イベント関連はこの紐付けテーブルを正とする。
+
+2. シナリオ拡張（最重要：条件＝ルール）
+2-1. シナリオに「基準日（base_date_type）」を追加（後方互換）
+
+base_date_type を追加（nullable）。未設定の既存シナリオは lead_created_at 扱いにする。
+
+lead_created_at（従来互換：lead.created_at を基準）
+
+event_date（新：イベント日程を基準）
+
+送信予定日時の計算：
+
+lead_created_at → send_at = lead.created_at + delay_days
+
+event_date → send_at = event.event_date + delay_days（※ event_registrations 経由でイベントを参照）
+
+2-2. シナリオに「イベント条件」を追加（新）
+
+イベント日程基準で送る場合、どのイベント群に対するシナリオか指定できるようにする。
+
+以下を追加（いずれもnullable）：
+
+segment_event_mode：none / by_type / by_id
+
+segment_event_type：例 oc（by_typeのとき使用）
+
+segment_event_id：特定イベントID（by_idのとき使用）
+
+segment_event_status_in：複数選択（planned/attended/absent/canceled）
+
+DBは JSON 文字列 or カンマ区切り文字列でOK（実装しやすい方式で）
+
+未設定なら「すべてのステータス」を対象（ただし planned 推奨でもOK）
+
+運用での想定例
+
+「OC事前案内（7日前）」
+
+base_date_type=event_date, segment_event_mode=by_type, segment_event_type=oc, segment_event_status_in=[planned], delay_days=-7
+
+「OCお礼（翌日）」
+
+base_date_type=event_date, segment_event_mode=by_type, segment_event_type=oc, segment_event_status_in=[attended], delay_days=+1
+
+「この特定イベント参加者にだけ送る」
+
+segment_event_mode=by_id, segment_event_id=xxx
+
+2-3. 既存の属性セグメント（任意）も追加/維持
+
+（既存のleadsに列があるものだけ使う。無ければスキップ可）
+
+graduation_year from/to
+
+grade_in（複数）
+
+（任意）prefecture, tag
+
+2-4. 除外（事故防止）
+
+必ず共通で除外：
+
+unsubscribe済み
+
+email不正/空
+
+送信ログで同一シナリオの重複送信（既存ロジック踏襲）
+
+3. UI（イベント管理）
+3-1. イベント一覧
+
+/ui/events
+
+event_date, title, event_type, active, 参加者数
+
+操作：詳細 / 編集 / 有効無効
+
+3-2. イベント作成/編集
+
+/ui/events/new, /ui/events/{id}/edit
+
+event_type, title, event_date（必須）, location, notes, is_active
+
+3-3. イベント詳細（参加者管理）
+
+/ui/events/{id}
+
+イベント情報表示
+
+参加者一覧（leadの氏名/メール等）
+
+参加者の status をプルダウンで変更できる（planned/attended/absent/canceled）
+
+参加者解除ボタン
+
+参加者の追加方法（必須）
+
+リード検索（メール/名前/外部IDで部分一致）→「追加」
+
+最大20件まで表示、ページング不要でOK（PoC）
+
+4. UI（シナリオ作成/編集/詳細）の拡張
+4-1. シナリオ作成/編集フォームに追加
+
+既存のシナリオフォームに「送信対象の条件」セクションを追加（折りたたみ可）。
+
+基準日（lead_created_at / event_date）
+
+イベント条件（基準日がevent_dateのときだけ表示）
+
+対象イベント：event_typeで指定（プルダウン＋自由入力可）
+
+または特定イベントID（event一覧から選択）
+
+参加ステータス（チェックボックス複数選択）
+
+planned/attended/absent/canceled
+
+属性条件（卒業年度from/to、学年複数など、存在するもののみ）
+
+重要：条件未設定なら従来通り（トリガー一致の全員）にする。
+ただし base_date_type=event_date の場合、イベント条件は必須にする（by_type か by_id のどちらか）。
+
+4-2. シナリオ一覧にも「条件あり」が分かる表示
+
+例：「イベント: oc / status: planned」など短いバッジ
+
+4-3. シナリオ詳細に「プレビュー」を追加（必須）
+
+シナリオ詳細（詳細ボタン先）に以下を表示：
+
+条件一致候補：件数
+
+サンプル候補：最大10件（メールはマスク可）
+
+条件の要約（イベント条件＋ステータス＋属性）
+
+※ プレビューの算出はまず「条件一致候補の母数」でもOK（A方式）。
+可能なら scheduler と共通関数にして「今日送信予定」を出す（B方式）。
+
+5. スケジューラ（送信対象抽出ロジック）
+5-1. 共通関数化（推奨）
+
+get_target_leads_for_scenario(scenario, now) を作り、
+
+scheduler
+
+preview
+が同じ関数を使う（ズレ防止）
+
+5-2. event_date基準の抽出
+
+base_date_type=event_date の場合：
+
+対象イベントを抽出
+
+by_type → events.event_type=segment_event_type AND is_active=true（推奨）
+
+by_id → events.id=segment_event_id
+
+events の中から「send_at = event.event_date + delay_days」が“今送るべき日”に該当するものを抽出
+
+そのイベントの event_registrations を取得
+
+status が segment_event_status_in に含まれるものだけ
+
+lead をJOINし、属性条件も適用
+
+unsubscribe / email不正 を除外
+
+send_logs の重複防止
+event_date基準はイベント単位で送る必要があるので、send_logsの一意性キーに event_id を含める。
+
+推奨ユニーク制約：
+
+(lead_id, scenario_id, event_id)
+（既存があるなら整合を取りつつ追加）
+
+6. send_logs（必要なら拡張）
+
+event_date基準で正しく重複防止・追跡するため、send_logsに以下を追加（可能なら）：
+
+event_id（nullable）
+
+computed_send_at（nullable）
+
+skipped_reason（nullable）
+
+7. CSV取り込み（互換）
+
+既存CSV取り込みは壊さない。
+余力があれば、CSVでイベント紐付けを追加できると良い（任意）：
+
+event_id または (event_type + event_date) で registrations を作れる
+
+ただし今回の主目的は「UIで登録」なのでCSV対応は後回しでもOK。
+
+8. マイグレーション（Alembic）
+
+events追加
+
+event_registrations追加
+
+scenariosに新カラム追加
+
+send_logsにevent_id追加（採用するなら）
+
+既存データは全てNULL許容で後方互換
+
+9. 受け入れ条件（必ず満たす）
+
+UIでイベント作成できる
+
+イベント詳細で参加者を検索→追加できる
+
+参加者のステータス（予定/参加/欠席/キャンセル）を変更できる
+
+シナリオで「基準日=イベント日程」「対象イベント（type or id）」「対象ステータス」を設定できる
+
+シナリオ詳細で「条件一致候補件数＋サンプル10件」が見える
+
+スケジューラがイベント日程基準で正しく対象者を抽出し、重複送信しない
+
+既存の登録日基準シナリオが従来通り動く
+
+uv run python -m uvicorn ... で起動してUIが動く
+
+10. 実装対象（目安）
+
+models:
+
+src/ma_tool/models/event.py
+
+src/ma_tool/models/event_registration.py
+
+src/ma_tool/models/scenario.py（セグメント拡張）
+
+src/ma_tool/models/send_log.py（event_id追加が必要なら）
+
+endpoints:
+
+src/ma_tool/api/endpoints/events.py
+
+src/ma_tool/api/endpoints/event_registrations.py
+
+src/ma_tool/api/endpoints/ui_scenarios.py or 既存views系の拡張
+
+src/ma_tool/api/endpoints/scheduler_api.py（抽出ロジック）
+
+templates:
+
+ui_events_list.html
+
+ui_event_form.html
+
+ui_event_detail.html
+
+シナリオ作成/編集/詳細テンプレの拡張
+
+migration:
+
+alembic/versions/*_add_events_and_registrations_and_scenario_segments.py
+
+11. 仕上げ（運用者が迷わないUI文言）
+
+「対象者の条件（セグメント）」という表現に統一
+
+「イベント参加ステータスで絞り込み」明記
+
+条件未設定時は「トリガー一致の全員が対象」と注釈
+
+event_date基準の場合は「イベント条件は必須」と注釈
+
+出力してほしいもの（Replitが回答する内容）
+
+追加/変更したファイル一覧
+
+DB変更点（テーブル/カラム/制約）
+
+プレビューの算出方式（母数 or 今日送信予定）
+
+動作確認手順（イベント作成→参加者追加→ステータス変更→シナリオ作成→候補表示→送信）

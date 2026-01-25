@@ -24,7 +24,7 @@ from src.ma_tool.services.scenario_engine import (
     create_send_log_reservation,
 )
 from src.ma_tool.services.template_renderer import render_email_body, render_subject
-from src.ma_tool.services.segment_filter import apply_segment_conditions, is_valid_email
+from src.ma_tool.services.segment_filter import apply_segment_conditions, is_valid_email, get_status_filter_list
 from src.ma_tool.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -188,13 +188,12 @@ def process_event_date_scenarios(db: Session, now: Optional[datetime] = None) ->
             if send_date < today - timedelta(days=1):
                 continue
             
+            status_list = get_status_filter_list(scenario)
+            
             reg_stmt = select(LeadEventRegistration).where(
                 and_(
                     LeadEventRegistration.calendar_event_id == cal_event.id,
-                    LeadEventRegistration.status.in_([
-                        RegistrationStatus.SCHEDULED,
-                        RegistrationStatus.ATTENDED
-                    ])
+                    LeadEventRegistration.status.in_(status_list)
                 )
             )
             registrations = list(db.execute(reg_stmt).scalars().all())
@@ -206,7 +205,7 @@ def process_event_date_scenarios(db: Session, now: Optional[datetime] = None) ->
             lead_query = select(Lead).where(
                 and_(
                     Lead.id.in_(lead_ids),
-                    Lead.consent_given == True,
+                    Lead.consent == True,
                     Lead.unsubscribed == False,
                     Lead.email.isnot(None),
                     Lead.email != ""

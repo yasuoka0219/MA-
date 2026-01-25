@@ -41,6 +41,7 @@ class Scenario(Base):
     segment_prefecture: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     segment_tag: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     segment_school_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    segment_event_status_in: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -66,6 +67,7 @@ class Scenario(Base):
             self.segment_prefecture,
             self.segment_tag,
             self.segment_school_name,
+            self.segment_event_status_in,
         ])
     
     def get_segment_summary(self) -> str:
@@ -86,4 +88,6 @@ class Scenario(Base):
             parts.append(f"高校:{self.segment_school_name}")
         if self.segment_tag:
             parts.append(f"タグ:{self.segment_tag}")
+        if self.segment_event_status_in:
+            parts.append(f"参加ステータス:{self.segment_event_status_in}")
         return " / ".join(parts) if parts else "—"

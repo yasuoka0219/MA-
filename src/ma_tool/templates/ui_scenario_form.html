@@ -196,6 +196,24 @@
                             </div>
                         </div>
                         
+                        <div class="mb-3">
+                            <label class="form-label">参加ステータス（複数選択可）</label>
+                            <div class="d-flex flex-wrap gap-3">
+                                {% set current_status = (scenario.segment_event_status_in | default('') | safe) if scenario else '' %}
+                                {% for val, label in [('scheduled', '予定'), ('attended', '参加'), ('absent', '欠席'), ('cancelled', 'キャンセル')] %}
+                                <div class="form-check">
+                                    <input type="checkbox" name="segment_event_status_in" value="{{ val }}" 
+                                           class="form-check-input" id="status_{{ val }}"
+                                           {% if val in current_status %}checked{% endif %}>
+                                    <label class="form-check-label" for="status_{{ val }}">{{ label }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="form-text">
+                                未選択の場合は「予定」と「参加」のみが対象になります。
+                            </div>
+                        </div>
+                        
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle me-1"></i>
                             <strong>イベント日程基準の例：</strong><br>
