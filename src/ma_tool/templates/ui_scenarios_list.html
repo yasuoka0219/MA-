@@ -27,8 +27,8 @@
                     <th>名前</th>
                     <th>テンプレート</th>
                     <th>トリガー</th>
+                    <th>対象条件</th>
                     <th>遅延</th>
-                    <th>頻度</th>
                     <th>ステータス</th>
                     <th></th>
                 </tr>
@@ -45,8 +45,12 @@
                         {% endif %}
                     </td>
                     <td><code>{{ scenario.trigger_event_type }}</code></td>
+                    <td>
+                        <small class="{% if scenario.has_segment_conditions() %}text-primary{% else %}text-muted{% endif %}">
+                            {{ scenario.get_segment_summary() }}
+                        </small>
+                    </td>
                     <td>{{ scenario.delay_days }}日</td>
-                    <td>{{ scenario.frequency_days }}日</td>
                     <td id="status-{{ scenario.id }}">
                         {% if scenario.is_enabled %}
                         <span class="badge bg-success">有効</span>

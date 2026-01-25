@@ -67,13 +67,84 @@
                         </div>
                     </div>
 
+                    <hr class="my-4">
                     <div class="mb-3">
-                        <label class="form-label">卒業年度ルール（JSON）</label>
-                        <textarea name="graduation_year_rule" class="form-control font-monospace" rows="3" 
-                                  placeholder='例: {"min": 2025, "max": 2026} または {"exact": 2025}'>{{ scenario.graduation_year_rule if scenario else '' }}</textarea>
-                        <div class="form-text">
-                            対象卒業年度を指定。空欄の場合は全年度対象。
+                        <h6 class="mb-3 d-flex align-items-center" data-bs-toggle="collapse" data-bs-target="#segment-section" style="cursor:pointer;">
+                            <i class="bi bi-funnel me-2"></i>送信対象の条件（セグメント）
+                            <i class="bi bi-chevron-down ms-auto"></i>
+                        </h6>
+                        <div class="collapse {% if scenario and scenario.has_segment_conditions() %}show{% endif %}" id="segment-section">
+                            <div class="alert alert-info small mb-3">
+                                <i class="bi bi-info-circle me-1"></i>
+                                条件が未設定の場合、トリガー一致の全員が対象になります。
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">卒業年度（開始）</label>
+                                    <select name="segment_graduation_year_from" class="form-select">
+                                        <option value="">指定なし</option>
+                                        {% for year in available_years %}
+                                        <option value="{{ year }}" {% if scenario and scenario.segment_graduation_year_from == year %}selected{% endif %}>{{ year }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">卒業年度（終了）</label>
+                                    <select name="segment_graduation_year_to" class="form-select">
+                                        <option value="">指定なし</option>
+                                        {% for year in available_years %}
+                                        <option value="{{ year }}" {% if scenario and scenario.segment_graduation_year_to == year %}selected{% endif %}>{{ year }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">学年</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    {% set current_grades = (scenario.segment_grade_in | default('[]') | safe) if scenario else '[]' %}
+                                    {% for grade in ['高1', '高2', '高3'] %}
+                                    <div class="form-check">
+                                        <input type="checkbox" name="segment_grade_in" value="{{ grade }}" 
+                                               class="form-check-input" id="grade_{{ loop.index }}"
+                                               {% if grade in current_grades %}checked{% endif %}>
+                                        <label class="form-check-label" for="grade_{{ loop.index }}">{{ grade }}</label>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">高校名（部分一致）</label>
+                                <input type="text" name="segment_school_name" class="form-control" 
+                                       value="{{ scenario.segment_school_name if scenario else '' }}"
+                                       placeholder="例: 開成">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">都道府県</label>
+                                <select name="segment_prefecture" class="form-select">
+                                    <option value="">指定なし</option>
+                                    {% for pref in prefectures %}
+                                    <option value="{{ pref }}" {% if scenario and scenario.segment_prefecture == pref %}selected{% endif %}>{{ pref }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">タグ</label>
+                                <input type="text" name="segment_tag" class="form-control" 
+                                       value="{{ scenario.segment_tag if scenario else '' }}"
+                                       placeholder="例: 理系志望">
+                                <div class="form-text">将来的な機能用（現在は未実装）</div>
+                            </div>
                         </div>
+                    </div>
+                    
+                    <div class="mb-3 d-none">
+                        <label class="form-label">卒業年度ルール（JSON・互換用）</label>
+                        <textarea name="graduation_year_rule" class="form-control font-monospace" rows="2">{{ scenario.graduation_year_rule if scenario else '' }}</textarea>
                     </div>
 
                     <hr class="my-4">

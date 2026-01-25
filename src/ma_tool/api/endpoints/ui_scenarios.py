@@ -1,7 +1,7 @@
 """UI endpoints for scenario management"""
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Request, Depends, Query, Form
 from fastapi.responses import HTMLResponse, Response, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -18,6 +18,7 @@ from src.ma_tool.models.user import User, UserRole
 from src.ma_tool.models.audit_log import AuditLog
 from src.ma_tool.api.deps import require_session_login
 from src.ma_tool.config import settings
+from src.ma_tool.services.segment_filter import get_scenario_preview
 
 CALENDAR_EVENT_TYPES = [
     ("oc", "オープンキャンパス"),
@@ -26,6 +27,29 @@ CALENDAR_EVENT_TYPES = [
     ("tour", "見学会"),
     ("other", "その他"),
 ]
+
+PREFECTURES = [
+    "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+    "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+    "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県",
+    "岐阜県", "静岡県", "愛知県", "三重県",
+    "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県",
+    "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+    "徳島県", "香川県", "愛媛県", "高知県",
+    "福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+]
+
+
+def get_available_years(db: Session) -> List[int]:
+    years = db.execute(
+        select(Lead.graduation_year)
+        .where(Lead.graduation_year.isnot(None))
+        .distinct()
+        .order_by(Lead.graduation_year.desc())
+    ).scalars().all()
+    current_year = datetime.now().year
+    all_years = set(years) | {current_year + i for i in range(5)}
+    return sorted(all_years, reverse=True)
 
 router = APIRouter(prefix="/ui", tags=["UI Scenarios"])
 templates = Jinja2Templates(directory="src/ma_tool/templates")
@@ -120,6 +144,8 @@ async def scenario_new(
         "event_types": event_types,
         "calendar_event_types": CALENDAR_EVENT_TYPES,
         "calendar_events": calendar_events,
+        "available_years": get_available_years(db),
+        "prefectures": PREFECTURES,
     })
 
 
@@ -136,11 +162,19 @@ async def scenario_create(
     base_date_type: str = Form(BaseDateType.LEAD_CREATED_AT),
     event_type_filter: Optional[str] = Form(None),
     target_calendar_event_id: Optional[int] = Form(None),
+    segment_graduation_year_from: Optional[int] = Form(None),
+    segment_graduation_year_to: Optional[int] = Form(None),
+    segment_grade_in: Optional[List[str]] = Form(None),
+    segment_prefecture: Optional[str] = Form(None),
+    segment_school_name: Optional[str] = Form(None),
+    segment_tag: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
 ):
     if not can_edit(user):
         return RedirectResponse(url="/ui/scenarios", status_code=302)
+    
+    grade_in_json = json.dumps(segment_grade_in) if segment_grade_in else None
     
     scenario = Scenario(
         name=name,
@@ -153,6 +187,12 @@ async def scenario_create(
         base_date_type=base_date_type,
         event_type_filter=event_type_filter or None,
         target_calendar_event_id=target_calendar_event_id or None,
+        segment_graduation_year_from=segment_graduation_year_from or None,
+        segment_graduation_year_to=segment_graduation_year_to or None,
+        segment_grade_in=grade_in_json,
+        segment_prefecture=segment_prefecture or None,
+        segment_school_name=segment_school_name or None,
+        segment_tag=segment_tag or None,
     )
     db.add(scenario)
     db.commit()
@@ -198,6 +238,8 @@ async def scenario_detail(
         "event_types": event_types,
         "calendar_event_types": CALENDAR_EVENT_TYPES,
         "calendar_events": calendar_events,
+        "available_years": get_available_years(db),
+        "prefectures": PREFECTURES,
         "can_edit": can_edit(user),
     })
 
@@ -216,6 +258,12 @@ async def scenario_update(
     base_date_type: str = Form(BaseDateType.LEAD_CREATED_AT),
     event_type_filter: Optional[str] = Form(None),
     target_calendar_event_id: Optional[int] = Form(None),
+    segment_graduation_year_from: Optional[int] = Form(None),
+    segment_graduation_year_to: Optional[int] = Form(None),
+    segment_grade_in: Optional[List[str]] = Form(None),
+    segment_prefecture: Optional[str] = Form(None),
+    segment_school_name: Optional[str] = Form(None),
+    segment_tag: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
 ):
@@ -227,6 +275,7 @@ async def scenario_update(
         return RedirectResponse(url="/ui/scenarios", status_code=302)
     
     old_enabled = scenario.is_enabled
+    grade_in_json = json.dumps(segment_grade_in) if segment_grade_in else None
     
     scenario.name = name
     scenario.template_id = template_id
@@ -238,6 +287,12 @@ async def scenario_update(
     scenario.base_date_type = base_date_type
     scenario.event_type_filter = event_type_filter or None
     scenario.target_calendar_event_id = target_calendar_event_id or None
+    scenario.segment_graduation_year_from = segment_graduation_year_from or None
+    scenario.segment_graduation_year_to = segment_graduation_year_to or None
+    scenario.segment_grade_in = grade_in_json
+    scenario.segment_prefecture = segment_prefecture or None
+    scenario.segment_school_name = segment_school_name or None
+    scenario.segment_tag = segment_tag or None
     scenario.updated_at = datetime.now(timezone.utc)
     db.commit()
     
@@ -293,30 +348,10 @@ async def scenario_preview(
     if not scenario:
         return Response(content="<div class='alert alert-danger'>シナリオが見つかりません</div>", media_type="text/html")
     
-    query = select(Lead).where(
-        Lead.consent == True,
-        Lead.unsubscribed == False,
-    )
-    
-    if scenario.graduation_year_rule:
-        try:
-            rule = json.loads(scenario.graduation_year_rule)
-            if "exact" in rule:
-                query = query.where(Lead.graduation_year == rule["exact"])
-            elif "min" in rule or "max" in rule:
-                if "min" in rule:
-                    query = query.where(Lead.graduation_year >= rule["min"])
-                if "max" in rule:
-                    query = query.where(Lead.graduation_year <= rule["max"])
-        except json.JSONDecodeError:
-            pass
-    
-    leads = db.execute(query.limit(20)).scalars().all()
-    total_count = db.execute(query).scalars().all().__len__()
+    preview_data = get_scenario_preview(db, scenario, sample_limit=10)
     
     return templates.TemplateResponse("ui_scenario_preview.html", {
         **get_base_context(request, user),
         "scenario": scenario,
-        "leads": leads,
-        "total_count": total_count,
+        "preview": preview_data,
     })
