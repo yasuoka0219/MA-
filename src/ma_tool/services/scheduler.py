@@ -24,6 +24,7 @@ from src.ma_tool.services.scenario_engine import (
     create_send_log_reservation,
 )
 from src.ma_tool.services.template_renderer import render_email_body, render_subject
+from src.ma_tool.services.segment_filter import apply_segment_conditions, is_valid_email
 from src.ma_tool.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -198,27 +199,39 @@ def process_event_date_scenarios(db: Session, now: Optional[datetime] = None) ->
             )
             registrations = list(db.execute(reg_stmt).scalars().all())
             
-            for reg in registrations:
-                lead = db.get(Lead, reg.lead_id)
-                if not lead:
-                    continue
-                
-                if not lead.consent_given or lead.unsubscribed:
-                    continue
-                
-                if scenario.graduation_year_rule:
-                    import json
-                    try:
-                        rule = json.loads(scenario.graduation_year_rule)
-                        if "exact" in rule and lead.graduation_year != rule["exact"]:
-                            continue
-                        if "min" in rule and lead.graduation_year and lead.graduation_year < rule["min"]:
-                            continue
-                        if "max" in rule and lead.graduation_year and lead.graduation_year > rule["max"]:
-                            continue
-                    except:
-                        pass
-                
+            lead_ids = [reg.lead_id for reg in registrations]
+            if not lead_ids:
+                continue
+            
+            lead_query = select(Lead).where(
+                and_(
+                    Lead.id.in_(lead_ids),
+                    Lead.consent_given == True,
+                    Lead.unsubscribed == False,
+                    Lead.email.isnot(None),
+                    Lead.email != ""
+                )
+            )
+            
+            lead_query = apply_segment_conditions(lead_query, scenario)
+            
+            if scenario.graduation_year_rule:
+                import json
+                try:
+                    rule = json.loads(scenario.graduation_year_rule)
+                    if "exact" in rule:
+                        lead_query = lead_query.where(Lead.graduation_year == rule["exact"])
+                    if "min" in rule:
+                        lead_query = lead_query.where(Lead.graduation_year >= rule["min"])
+                    if "max" in rule:
+                        lead_query = lead_query.where(Lead.graduation_year <= rule["max"])
+                except:
+                    pass
+            
+            eligible_leads = list(db.execute(lead_query).scalars().all())
+            eligible_leads = [lead for lead in eligible_leads if is_valid_email(lead.email)]
+            
+            for lead in eligible_leads:
                 scheduled_for = datetime.combine(send_date, datetime.min.time().replace(hour=9))
                 scheduled_for = scheduled_for.replace(tzinfo=JST)
                 

@@ -41,6 +41,9 @@ def apply_segment_conditions(
     if scenario.segment_school_name:
         conditions.append(Lead.school_name.ilike(f"%{scenario.segment_school_name}%"))
     
+    if scenario.segment_tag:
+        conditions.append(Lead.interest_tags.ilike(f"%{scenario.segment_tag}%"))
+    
     if conditions:
         query = query.where(and_(*conditions))
     
@@ -189,6 +192,8 @@ def get_scenario_preview(
         condition_parts.append(f"都道府県={scenario.segment_prefecture}")
     if scenario.segment_school_name:
         condition_parts.append(f"高校={scenario.segment_school_name}")
+    if scenario.segment_tag:
+        condition_parts.append(f"タグ={scenario.segment_tag}")
     
     return {
         "total_count": total_count,
