@@ -65,7 +65,7 @@ def is_valid_email(email: str) -> bool:
 
 def get_status_filter_list(scenario: Scenario) -> list:
     """Get the list of event statuses to filter by.
-    Returns the configured statuses or defaults to ['scheduled', 'attended'].
+    Returns the configured statuses as RegistrationStatus enums or defaults to [SCHEDULED, ATTENDED].
     """
     default_statuses = [RegistrationStatus.SCHEDULED, RegistrationStatus.ATTENDED]
     
@@ -75,7 +75,13 @@ def get_status_filter_list(scenario: Scenario) -> list:
     try:
         statuses = json.loads(scenario.segment_event_status_in)
         if isinstance(statuses, list) and statuses:
-            return statuses
+            result = []
+            for s in statuses:
+                try:
+                    result.append(RegistrationStatus(s))
+                except ValueError:
+                    pass
+            return result if result else default_statuses
     except (json.JSONDecodeError, TypeError):
         pass
     
