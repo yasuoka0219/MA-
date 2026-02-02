@@ -1,0 +1,166 @@
+{% extends "ui_base.html" %}
+{% block title %}監査ログ - MA Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-shield-check me-2"></i>監査ログ</h2>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">アクション</label>
+                <input type="text" name="action_filter" class="form-control" 
+                       value="{{ action_filter }}" placeholder="例: create, update">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">ユーザー</label>
+                <select name="user_filter" class="form-select">
+                    <option value="">すべて</option>
+                    {% for u in all_users %}
+                    <option value="{{ u.id }}" {% if user_filter == u.id %}selected{% endif %}>
+                        {{ u.name }} ({{ u.role.value }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">対象タイプ</label>
+                <select name="target_type_filter" class="form-select">
+                    <option value="">すべて</option>
+                    {% for tt in target_types %}
+                    <option value="{{ tt }}" {% if target_type_filter == tt %}selected{% endif %}>{{ tt }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">期間</label>
+                <select name="days" class="form-select" onchange="this.form.submit()">
+                    <option value="7" {% if days == 7 %}selected{% endif %}>直近7日</option>
+                    <option value="14" {% if days == 14 %}selected{% endif %}>直近14日</option>
+                    <option value="30" {% if days == 30 %}selected{% endif %}>直近30日</option>
+                    <option value="90" {% if days == 90 %}selected{% endif %}>直近90日</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> 検索
+                </button>
+                <a href="/ui/audit-logs" class="btn btn-outline-secondary">クリア</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>監査ログ一覧</span>
+        <span class="badge bg-secondary">{{ total_count }}件</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>日時</th>
+                    <th>ユーザー</th>
+                    <th>アクション</th>
+                    <th>対象</th>
+                    <th>詳細</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>
+                        {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '-' }}
+                    </td>
+                    <td>
+                        {% if log.actor_user_id in users %}
+                        <div>
+                            <strong>{{ users[log.actor_user_id].name }}</strong>
+                            <br>
+                            <small class="text-muted">{{ users[log.actor_user_id].email }}</small>
+                            <br>
+                            <span class="badge bg-secondary">{{ log.actor_role_snapshot }}</span>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">ID: {{ log.actor_user_id }}</span>
+                        <br>
+                        <span class="badge bg-secondary">{{ log.actor_role_snapshot }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <code>{{ log.action }}</code>
+                    </td>
+                    <td>
+                        {% if log.target_type %}
+                        <div>
+                            <strong>{{ log.target_type }}</strong>
+                            {% if log.target_id %}
+                            <br>
+                            <small class="text-muted">ID: {{ log.target_id }}</small>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.meta_json %}
+                        <button class="btn btn-sm btn-outline-info" 
+                                type="button" 
+                                data-bs-toggle="collapse" 
+                                data-bs-target="#meta-{{ log.id }}"
+                                aria-expanded="false">
+                            <i class="bi bi-info-circle"></i> 詳細
+                        </button>
+                        <div class="collapse mt-2" id="meta-{{ log.id }}">
+                            <div class="card card-body">
+                                <pre class="mb-0 small">{{ log.meta_json }}</pre>
+                            </div>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        監査ログがありません
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if total_count and total_count > per_page %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page - 1 }}&action_filter={{ action_filter }}&user_filter={{ user_filter }}&target_type_filter={{ target_type_filter }}&days={{ days }}">前へ</a>
+        </li>
+        {% endif %}
+        <li class="page-item disabled">
+            <span class="page-link">
+                {% if total_count > 0 %}
+                {{ start_item }}-{{ end_item }}件 / 全{{ total_count }}件 ({{ page }} / {{ total_pages }}ページ)
+                {% else %}
+                0件
+                {% endif %}
+            </span>
+        </li>
+        {% if page * per_page < total_count %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page + 1 }}&action_filter={{ action_filter }}&user_filter={{ user_filter }}&target_type_filter={{ target_type_filter }}&days={{ days }}">次へ</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

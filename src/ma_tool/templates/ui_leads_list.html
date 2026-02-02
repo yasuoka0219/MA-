@@ -2,9 +2,55 @@
 {% block title %}リード一覧 - MA Tool{% endblock %}
 
 {% block content %}
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle"></i> {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-people me-2"></i>リード一覧</h2>
-    <span class="badge bg-secondary">{{ total_count }}件</span>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-secondary">{{ total_count }}件</span>
+        <a href="#" id="export-link" class="btn btn-outline-success">
+            <i class="bi bi-download"></i> CSVエクスポート
+        </a>
+        <a href="/ui/leads/new" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> 新規追加
+        </a>
+    </div>
+</div>
+
+<div id="bulk-actions" class="card mb-3" style="display: none;">
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-3">
+            <span class="text-muted">
+                <span id="selected-count">0</span>件を選択中
+            </span>
+            <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="bulkAction('delete')" id="bulk-delete-btn" disabled>
+                    <i class="bi bi-trash"></i> 削除
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="bulkAction('unsubscribe')" id="bulk-unsubscribe-btn" disabled>
+                    <i class="bi bi-pause-circle"></i> 配信停止
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="bulkAction('resubscribe')" id="bulk-resubscribe-btn" disabled>
+                    <i class="bi bi-play-circle"></i> 配信再開
+                </button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                <i class="bi bi-x"></i> 選択解除
+            </button>
+        </div>
+    </div>
 </div>
 
 <div class="card mb-4">
@@ -23,11 +69,19 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label">興味関心</label>
                 <input type="text" name="interest" class="form-control" value="{{ interest }}" placeholder="例: 情報工学">
             </div>
-            <div class="col-md-3 d-flex align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">配信状況</label>
+                <select name="unsubscribed_filter" class="form-select">
+                    <option value="">すべて</option>
+                    <option value="false" {% if unsubscribed_filter == 'false' %}selected{% endif %}>配信中</option>
+                    <option value="true" {% if unsubscribed_filter == 'true' %}selected{% endif %}>配信停止中</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary me-2">
                     <i class="bi bi-search"></i> 検索
                 </button>
@@ -42,6 +96,9 @@
         <table class="table table-hover mb-0">
             <thead class="table-light">
                 <tr>
+                    <th style="width: 40px;">
+                        <input type="checkbox" id="select-all" onchange="toggleSelectAll(this)">
+                    </th>
                     <th>メール</th>
                     <th>名前</th>
                     <th>学校名</th>
@@ -49,12 +106,15 @@
                     <th>同意</th>
                     <th>配信停止</th>
                     <th>LINE</th>
-                    <th></th>
+                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
                 {% for lead in leads %}
                 <tr>
+                    <td>
+                        <input type="checkbox" class="lead-checkbox" value="{{ lead.id }}" onchange="updateBulkActions()">
+                    </td>
                     <td><a href="/ui/leads/{{ lead.id }}">{{ lead.email }}</a></td>
                     <td>{{ lead.name or '-' }}</td>
                     <td>{{ lead.school_name or '-' }}</td>
@@ -88,12 +148,24 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/ui/leads/{{ lead.id }}" class="btn btn-sm btn-outline-primary">詳細</a>
+                        <div class="btn-group">
+                            <a href="/ui/leads/{{ lead.id }}" class="btn btn-outline-primary" 
+                               data-bs-toggle="tooltip" data-bs-placement="top" title="詳細を表示">
+                                <i class="bi bi-eye"></i> 詳細
+                            </a>
+                            <a href="/ui/leads/{{ lead.id }}/edit" class="btn btn-outline-secondary"
+                               data-bs-toggle="tooltip" data-bs-placement="top" title="編集">
+                                <i class="bi bi-pencil"></i> 編集
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-4">リードが見つかりません</td>
+                    <td colspan="9" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        リードが見つかりません
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -106,18 +178,142 @@
     <ul class="pagination justify-content-center">
         {% if page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ page - 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}">前へ</a>
+            <a class="page-link" href="?page={{ page - 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}&unsubscribed_filter={{ unsubscribed_filter }}">前へ</a>
         </li>
         {% endif %}
         <li class="page-item disabled">
-            <span class="page-link">{{ page }} / {{ (total_count / per_page)|int + 1 }}</span>
+            <span class="page-link">
+                {% if total_count > 0 %}
+                {{ start_item }}-{{ end_item }}件 / 全{{ total_count }}件 ({{ page }} / {{ total_pages }}ページ)
+                {% else %}
+                0件
+                {% endif %}
+            </span>
         </li>
         {% if page * per_page < total_count %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ page + 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}">次へ</a>
+            <a class="page-link" href="?page={{ page + 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}&unsubscribed_filter={{ unsubscribed_filter }}">次へ</a>
         </li>
         {% endif %}
     </ul>
 </nav>
 {% endif %}
+
+<script>
+// エクスポートURLを構築
+(function() {
+    const params = new URLSearchParams();
+    {% if search %}
+    params.append('search', '{{ search }}');
+    {% endif %}
+    {% if graduation_year %}
+    params.append('graduation_year', '{{ graduation_year }}');
+    {% endif %}
+    {% if interest %}
+    params.append('interest', '{{ interest }}');
+    {% endif %}
+    {% if unsubscribed_filter %}
+    params.append('unsubscribed_filter', '{{ unsubscribed_filter }}');
+    {% endif %}
+    
+    const queryString = params.toString();
+    const exportUrl = '/ui/leads/export' + (queryString ? '?' + queryString : '');
+    document.getElementById('export-link').href = exportUrl;
+})();
+
+// Bootstrap tooltipの初期化
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// バルク操作関連の関数
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.lead-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
+    const count = checkboxes.length;
+    const selectedCount = document.getElementById('selected-count');
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectAll = document.getElementById('select-all');
+    
+    if (selectedCount) selectedCount.textContent = count;
+    
+    if (count > 0) {
+        bulkActions.style.display = 'block';
+        document.getElementById('bulk-delete-btn').disabled = false;
+        document.getElementById('bulk-unsubscribe-btn').disabled = false;
+        document.getElementById('bulk-resubscribe-btn').disabled = false;
+    } else {
+        bulkActions.style.display = 'none';
+        document.getElementById('bulk-delete-btn').disabled = true;
+        document.getElementById('bulk-unsubscribe-btn').disabled = true;
+        document.getElementById('bulk-resubscribe-btn').disabled = true;
+    }
+    
+    // 全選択チェックボックスの状態を更新
+    const allCheckboxes = document.querySelectorAll('.lead-checkbox');
+    if (selectAll) {
+        selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+        selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+    }
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.lead-checkbox');
+    checkboxes.forEach(cb => cb.checked = false);
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) selectAll.checked = false;
+    updateBulkActions();
+}
+
+function bulkAction(action) {
+    const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ids.length === 0) {
+        alert('リードを選択してください');
+        return;
+    }
+    
+    let confirmMessage = '';
+    if (action === 'delete') {
+        confirmMessage = `${ids.length}件のリードを削除しますか？この操作は取り消せません。`;
+    } else if (action === 'unsubscribe') {
+        confirmMessage = `${ids.length}件のリードの配信を停止しますか？`;
+    } else if (action === 'resubscribe') {
+        confirmMessage = `${ids.length}件のリードの配信を再開しますか？`;
+    }
+    
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+    
+    // フォームを作成して送信
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/ui/leads/bulk-action';
+    
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = action;
+    form.appendChild(actionInput);
+    
+    const idsInput = document.createElement('input');
+    idsInput.type = 'hidden';
+    idsInput.name = 'lead_ids';
+    idsInput.value = ids.join(',');
+    form.appendChild(idsInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
 {% endblock %}

@@ -1,0 +1,115 @@
+{% extends "ui_base.html" %}
+{% block title %}{% if is_new %}新規リード登録{% else %}リード編集{% endif %} - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/leads">リード一覧</a></li>
+        <li class="breadcrumb-item active">{% if is_new %}新規登録{% else %}編集{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">{% if is_new %}新規リード登録{% else %}リード編集{% endif %}</h5>
+    </div>
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{% if is_new %}/ui/leads/new{% else %}/ui/leads/{{ lead.id }}/edit{% endif %}">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">メールアドレス <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" 
+                               value="{% if lead %}{{ lead.email }}{% elif form_data %}{{ form_data.email }}{% endif %}" 
+                               required>
+                        <div class="form-text">必須項目。重複チェックが行われます。</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">名前 <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" 
+                               value="{% if lead %}{{ lead.name }}{% elif form_data %}{{ form_data.name }}{% endif %}" 
+                               required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">学校名</label>
+                        <input type="text" name="school_name" class="form-control" 
+                               value="{% if lead %}{{ lead.school_name or '' }}{% elif form_data %}{{ form_data.school_name or '' }}{% endif %}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">個人ID（外部ID）</label>
+                        <input type="text" name="external_id" class="form-control" 
+                               value="{% if lead %}{{ lead.external_id or '' }}{% elif form_data %}{{ form_data.external_id or '' }}{% endif %}">
+                        <div class="form-text">外部システムとの連携用ID</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">卒業年度</label>
+                        <input type="number" name="graduation_year" class="form-control" 
+                               value="{% if lead %}{{ lead.graduation_year }}{% elif form_data %}{{ form_data.graduation_year or '' }}{% endif %}" 
+                               min="2020" max="2030">
+                        <div class="form-text">例: 2026</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">学年（任意）</label>
+                        <input type="text" name="grade_label" class="form-control" 
+                               value="{% if lead and estimated_grade %}{{ estimated_grade }}{% elif form_data %}{{ form_data.grade_label or '' }}{% endif %}" 
+                               placeholder="例: 高1, 高2, 高3">
+                        <div class="form-text">卒業年度が未指定の場合、学年から自動計算されます</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-3">
+                        <label class="form-label">興味関心タグ</label>
+                        <input type="text" name="interest_tags" class="form-control" 
+                               value="{% if lead %}{{ lead.interest_tags or '' }}{% elif form_data %}{{ form_data.interest_tags or '' }}{% endif %}" 
+                               placeholder="例: 情報工学部, 経済学部">
+                        <div class="form-text">カンマ区切りで複数指定可能</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="consent" id="consent" 
+                           {% if lead and lead.consent %}checked{% elif form_data and form_data.consent %}checked{% elif is_new %}checked{% endif %}>
+                    <label class="form-check-label" for="consent">
+                        メール配信の同意
+                    </label>
+                    <div class="form-text">チェックを外すと、このリードにはメールが送信されません</div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check"></i> {% if is_new %}登録{% else %}更新{% endif %}
+                </button>
+                <a href="{% if is_new %}/ui/leads{% else %}/ui/leads/{{ lead.id }}{% endif %}" class="btn btn-outline-secondary">
+                    キャンセル
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -8,31 +8,456 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            /* より洗練されたカラーパレット */
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --secondary-color: #ec4899;
+            --accent-color: #06b6d4;
+            
+            /* サイドバー */
+            --sidebar-bg: #0f172a;
+            --sidebar-bg-light: #1e293b;
+            --sidebar-gradient: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            
+            /* 背景色 */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --bg-gradient: linear-gradient(to bottom, #fafbfc 0%, #f0f4f8 100%);
+            
+            /* テキスト色 */
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-tertiary: #64748b;
+            --text-muted: #94a3b8;
+            
+            /* ボーダー色 */
+            --border-color: #e2e8f0;
+            --border-color-light: #f1f5f9;
+            
+            /* 影 */
+            --card-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+            --card-shadow-hover: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            --sidebar-shadow: 4px 0 20px rgba(0, 0, 0, 0.08);
+            
+            /* トランジション */
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-fast: all 0.15s ease-out;
+        }
+
+        * {
+            transition: var(--transition-fast);
+        }
+
+        body {
+            background: var(--bg-gradient);
+            font-family: 'Inter', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', sans-serif;
+            color: var(--text-primary);
+            font-weight: 400;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
         .env-banner {
-            padding: 8px 16px;
+            padding: 12px 20px;
             text-align: center;
             font-weight: 500;
+            font-size: 0.875rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            letter-spacing: 0.01em;
         }
-        .env-dev { background: #ffc107; color: #000; }
-        .env-staging { background: #fd7e14; color: #fff; }
-        .env-prod { background: #dc3545; color: #fff; }
-        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+        .env-dev { 
+            background: linear-gradient(135deg, #fcd34d 0%, #fbbf24 100%); 
+            color: #78350f; 
+        }
+        .env-staging { 
+            background: linear-gradient(135deg, #fb923c 0%, #f97316 100%); 
+            color: #fff; 
+        }
+        .env-prod { 
+            background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); 
+            color: #fff; 
+        }
+        
+        .toast-container { 
+            position: fixed; 
+            top: 24px; 
+            right: 24px; 
+            z-index: 9999; 
+        }
+        .toast {
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
         .htmx-indicator { display: none; }
         .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline-block; }
-        .status-badge { font-size: 0.85rem; }
-        .line-status-unlinked { background: #6c757d; }
-        .line-status-linked { background: #198754; }
-        .line-status-blocked { background: #dc3545; }
-        .sidebar { min-height: 100vh; background: #212529; }
-        .sidebar .nav-link { color: rgba(255,255,255,.75); padding: 12px 20px; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,.1); }
-        .sidebar .nav-link i { margin-right: 10px; }
-        .content-wrapper { min-height: 100vh; }
-        .card-stat { border-left: 4px solid; }
-        .card-stat-primary { border-color: #0d6efd; }
-        .card-stat-success { border-color: #198754; }
-        .card-stat-warning { border-color: #ffc107; }
-        .card-stat-danger { border-color: #dc3545; }
+        
+        .status-badge { 
+            font-size: 0.85rem; 
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .line-status-unlinked { background: #6b7280; }
+        .line-status-linked { background: #10b981; }
+        .line-status-blocked { background: #ef4444; }
+        
+        /* サイドバーのスタイリッシュなデザイン */
+        .sidebar { 
+            min-height: 100vh; 
+            background: var(--sidebar-gradient);
+            box-shadow: var(--sidebar-shadow);
+            position: relative;
+        }
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--primary-gradient);
+        }
+        .sidebar .p-4 {
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(12px);
+        }
+        .sidebar .nav-link { 
+            color: rgba(255,255,255,.65); 
+            padding: 12px 20px; 
+            border-radius: 10px;
+            margin: 3px 12px;
+            position: relative;
+            font-weight: 500;
+            font-size: 0.9375rem;
+            transition: var(--transition);
+        }
+        .sidebar .nav-link i { 
+            margin-right: 12px; 
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+        .sidebar .nav-link:hover { 
+            color: #fff; 
+            background: rgba(255,255,255,.1);
+            transform: translateX(3px);
+        }
+        .sidebar .nav-link.active { 
+            color: #fff; 
+            background: rgba(99, 102, 241, 0.25);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.2);
+            font-weight: 600;
+        }
+        .sidebar .nav-link.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 70%;
+            background: var(--primary-gradient);
+            border-radius: 0 3px 3px 0;
+        }
+        .sidebar hr {
+            border-color: rgba(255,255,255,0.08);
+            margin: 16px 0;
+            opacity: 0.5;
+        }
+        .sidebar .text-white {
+            color: #fff !important;
+        }
+        .sidebar .text-white-50 {
+            color: rgba(255,255,255,0.6) !important;
+        }
+        
+        /* コンテンツエリア */
+        .content-wrapper { 
+            min-height: 100vh; 
+            background: transparent;
+            padding: 40px !important;
+        }
+        
+        /* カードのスタイリッシュなデザイン */
+        .card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            transition: var(--transition);
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+        .card:hover {
+            box-shadow: var(--card-shadow-hover);
+            transform: translateY(-3px);
+        }
+        .card-header {
+            background: linear-gradient(135deg, #ffffff 0%, #fafbfc 100%);
+            border-bottom: 1px solid var(--border-color-light);
+            padding: 20px 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+        .card-body {
+            padding: 24px;
+            color: var(--text-secondary);
+        }
+        
+        /* 統計カード */
+        .card-stat { 
+            border-left: none;
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+        .card-stat::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary-gradient);
+        }
+        .card-stat-primary::before { background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%); }
+        .card-stat-success::before { background: linear-gradient(180deg, #10b981 0%, #059669 100%); }
+        .card-stat-warning::before { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%); }
+        .card-stat-danger::before { background: linear-gradient(180deg, #f87171 0%, #ef4444 100%); }
+        
+        /* ボタンのスタイリッシュなデザイン */
+        .btn {
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-weight: 500;
+            transition: var(--transition);
+            border: none;
+            font-size: 0.9375rem;
+            letter-spacing: 0.01em;
+        }
+        .btn-primary {
+            background: var(--primary-gradient);
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        }
+        .btn-outline-primary {
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            background: transparent;
+        }
+        .btn-outline-primary:hover {
+            background: var(--primary-gradient);
+            color: white;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+        }
+        .btn-outline-success {
+            border: 2px solid #10b981;
+            color: #10b981;
+        }
+        .btn-outline-success:hover {
+            background: #10b981;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .btn-outline-danger {
+            border: 2px solid #f87171;
+            color: #f87171;
+        }
+        .btn-outline-danger:hover {
+            background: #f87171;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .btn-outline-warning {
+            border: 2px solid #f59e0b;
+            color: #f59e0b;
+        }
+        .btn-outline-warning:hover {
+            background: #f59e0b;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .btn-outline-secondary {
+            border: 2px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .btn-outline-secondary:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--border-color);
+            transform: translateY(-2px);
+        }
+        
+        /* テーブルのスタイリッシュなデザイン */
+        .table {
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+        .table thead {
+            background: linear-gradient(135deg, #fafbfc 0%, #f1f5f9 100%);
+        }
+        .table thead th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 16px;
+        }
+        .table tbody tr {
+            transition: var(--transition);
+            border-bottom: 1px solid var(--border-color-light);
+        }
+        .table tbody tr:hover {
+            background: var(--bg-secondary);
+            transform: scale(1.005);
+        }
+        .table tbody td {
+            color: var(--text-secondary);
+            padding: 16px;
+            vertical-align: middle;
+        }
+        
+        /* バッジのスタイリッシュなデザイン */
+        .badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.8125rem;
+            letter-spacing: 0.01em;
+        }
+        .bg-primary {
+            background: var(--primary-gradient) !important;
+        }
+        .bg-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+        }
+        .bg-warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+        }
+        .bg-danger {
+            background: linear-gradient(135deg, #f87171 0%, #ef4444 100%) !important;
+        }
+        .bg-secondary {
+            background: var(--text-tertiary) !important;
+        }
+        
+        /* フォーム要素 */
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid var(--border-color);
+            padding: 10px 16px;
+            transition: var(--transition);
+            color: var(--text-primary);
+            font-size: 0.9375rem;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+            outline: none;
+        }
+        .form-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.9375rem;
+            margin-bottom: 8px;
+        }
+        .form-text {
+            color: var(--text-tertiary);
+            font-size: 0.8125rem;
+        }
+        
+        /* アラート */
+        .alert {
+            border-radius: 12px;
+            border: none;
+            box-shadow: var(--card-shadow);
+            font-weight: 500;
+        }
+        .alert-success {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+        .alert-danger {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+        .alert-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+        .alert-info {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+        
+        /* ページタイトル */
+        h2 {
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 32px;
+            font-size: 1.875rem;
+            letter-spacing: -0.03em;
+        }
+        h3 {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+        h4, h5, h6 {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        /* テキスト色の調整 */
+        .text-muted {
+            color: var(--text-tertiary) !important;
+        }
+        .text-secondary {
+            color: var(--text-secondary) !important;
+        }
+        
+        /* アニメーション */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .content-wrapper > * {
+            animation: fadeIn 0.4s ease-out;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -47,11 +472,26 @@
 
     <div class="d-flex">
         {% if current_user %}
-        <nav class="sidebar d-flex flex-column" style="width: 250px;">
-            <div class="p-3 text-white">
-                <h5 class="mb-0">MA Tool</h5>
-                <small class="text-muted">{{ current_user.name }}</small>
-                <span class="badge bg-secondary ms-1">{{ current_user.role.value }}</span>
+        <nav class="sidebar d-flex flex-column" style="width: 260px;">
+            <div class="p-4 text-white">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-white bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; margin-right: 12px;">
+                        <i class="bi bi-envelope-paper text-white"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0 fw-bold">MA Tool</h5>
+                        <small class="text-white-50" style="font-size: 0.75rem;">Marketing Automation</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="bg-white bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; margin-right: 10px; font-size: 0.875rem;">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="text-white fw-medium" style="font-size: 0.875rem;">{{ current_user.name }}</div>
+                        <span class="badge bg-white bg-opacity-20 text-white border-0" style="font-size: 0.7rem; padding: 2px 8px;">{{ current_user.role.value }}</span>
+                    </div>
+                </div>
             </div>
             <hr class="text-secondary my-0">
             <ul class="nav flex-column">
@@ -95,9 +535,26 @@
                         <i class="bi bi-chat-dots"></i>LINE紐付け
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if '/ui/audit-logs' in request.url.path %}active{% endif %}" href="/ui/audit-logs">
+                        <i class="bi bi-shield-check"></i>監査ログ
+                    </a>
+                </li>
+                {% if current_user.role.value == 'admin' %}
+                <li class="nav-item">
+                    <a class="nav-link {% if '/ui/users' in request.url.path %}active{% endif %}" href="/ui/users">
+                        <i class="bi bi-person-gear"></i>ユーザー管理
+                    </a>
+                </li>
+                {% endif %}
             </ul>
             <hr class="text-secondary mt-auto">
             <ul class="nav flex-column mb-3">
+                <li class="nav-item">
+                    <a class="nav-link {% if '/ui/change-password' in request.url.path %}active{% endif %}" href="/ui/change-password">
+                        <i class="bi bi-key"></i>パスワード変更
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link" href="/ui/logout">
                         <i class="bi bi-box-arrow-right"></i>ログアウト
@@ -138,12 +595,30 @@
                     if (data.showToast) {
                         showToast(data.showToast.message, data.showToast.type);
                     }
+                    if (data.refreshPage) {
+                        // 少し遅延させてからリロード（トーストメッセージを表示するため）
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 500);
+                    }
                 } catch(e) {}
             }
         });
 
         document.body.addEventListener('htmx:responseError', function(evt) {
             showToast('エラーが発生しました', 'error');
+        });
+
+        // ページ読み込み時にURLパラメータからメッセージを表示
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const message = urlParams.get('message');
+            if (message) {
+                showToast(message, 'success');
+                // URLからパラメータを削除（ブラウザの戻るボタンで再表示されないように）
+                const newUrl = window.location.pathname + window.location.search.replace(/[?&]message=[^&]*/, '').replace(/^&/, '?');
+                window.history.replaceState({}, '', newUrl);
+            }
         });
     </script>
     {% block scripts %}{% endblock %}

@@ -1,0 +1,43 @@
+# Render デプロイ設定ファイル
+# このファイルを使用すると、Render Dashboardから簡単にデプロイできます
+
+services:
+  # Webサービス（FastAPIアプリケーション）
+  - type: web
+    name: ma-tool
+    env: python
+    buildCommand: uv pip install -r pyproject.toml
+    startCommand: uvicorn src.ma_tool.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: prod
+      - key: SESSION_SECRET_KEY
+        generateValue: true  # Renderが自動生成
+      - key: UNSUBSCRIBE_SECRET
+        generateValue: true  # Renderが自動生成
+      - key: TRACKING_SECRET
+        generateValue: true  # Renderが自動生成
+      - key: SCHEDULER_ENABLED
+        value: true
+      - key: RATE_LIMIT_PER_MINUTE
+        value: 60
+      # 以下はRender Dashboardで手動設定が必要
+      # - key: DATABASE_URL
+      #   fromDatabase:
+      #     name: ma-tool-db
+      #     property: connectionString
+      # - key: BASE_URL
+      #   value: https://your-app.onrender.com
+      # - key: SENDGRID_API_KEY
+      #   sync: false  # 手動で設定
+      # - key: MAIL_FROM
+      #   sync: false  # 手動で設定
+      # - key: MAIL_REPLY_TO
+      #   sync: false  # 手動で設定
+
+databases:
+  # PostgreSQLデータベース
+  - name: ma-tool-db
+    databaseName: ma_tool
+    user: ma_tool_user
+    plan: free  # または starter ($7/月)

@@ -35,10 +35,73 @@
 
             <div id="email-fields" style="display: none;">
                 <div class="mb-3">
-                    <label class="form-label">件名</label>
-                    <input type="text" name="subject" class="form-control" id="email-subject" value="{{ template.subject if template else '' }}" placeholder="例: {{ '{{' }} lead_name {{ '}}' }}様へのご案内">
-                    <div class="form-text">
-                        利用可能な変数: <code>{{ '{{' }} lead_name {{ '}}' }}</code>, <code>{{ '{{' }} lead_graduation_year {{ '}}' }}</code>
+                    <label class="form-label">件名 <span class="text-muted small">(Email Subject)</span></label>
+                    <div class="input-group mb-2">
+                        <input type="text" name="subject" class="form-control" id="email-subject" value="{{ template.subject if template else '' }}" placeholder="例: {{ '{{' }} lead_name {{ '}}' }}様へのご案内">
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="subject-variable-dropdown">
+                                <i class="bi bi-plus-circle"></i> 変数を挿入
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="subject-variable-dropdown">
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="insertSubjectVariable('lead_name'); return false;">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-person me-2"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold">氏名</div>
+                                                <small class="text-muted">リードの名前が入ります</small>
+                                            </div>
+                                            <code class="ms-2 small">{{ '{{' }} lead_name {{ '}}' }}</code>
+                                        </div>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="insertSubjectVariable('lead_email'); return false;">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-envelope me-2"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold">メールアドレス</div>
+                                                <small class="text-muted">リードのメールアドレスが入ります</small>
+                                            </div>
+                                            <code class="ms-2 small">{{ '{{' }} lead_email {{ '}}' }}</code>
+                                        </div>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="insertSubjectVariable('lead_school_name'); return false;">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-building me-2"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold">高校名</div>
+                                                <small class="text-muted">リードの高校名が入ります</small>
+                                            </div>
+                                            <code class="ms-2 small">{{ '{{' }} lead_school_name {{ '}}' }}</code>
+                                        </div>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="insertSubjectVariable('lead_graduation_year'); return false;">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-calendar3 me-2"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-bold">卒業年度</div>
+                                                <small class="text-muted">リードの卒業年度が入ります</small>
+                                            </div>
+                                            <code class="ms-2 small">{{ '{{' }} lead_graduation_year {{ '}}' }}</code>
+                                        </div>
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary" onclick="previewSubject()" title="件名プレビュー">
+                            <i class="bi bi-eye"></i> プレビュー
+                        </button>
+                    </div>
+                    
+                    <!-- 件名プレビュー -->
+                    <div id="subject-preview" class="alert alert-info d-none mb-0">
+                        <small class="d-block mb-1"><strong>プレビュー:</strong></small>
+                        <div id="subject-preview-text" class="fw-bold"></div>
                     </div>
                 </div>
                 <div class="mb-3">
@@ -92,7 +155,7 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Flex Message JSON（任意）</label>
-                    <textarea name="flex_message_json" class="form-control font-monospace" rows="10" placeholder='{"type": "bubble", "body": {...}}'>{{ template.flex_message_json if template else '' }}</textarea>
+                    <textarea name="flex_message_json" class="form-control font-monospace" rows="10" placeholder='{"type": "bubble", "body": {...}}'>{{ flex_json_str }}</textarea>
                     <div class="form-text">
                         LINE Flex Messageのフォーマットに従ってください。空の場合はテキストメッセージのみ送信されます。
                     </div>
@@ -164,5 +227,43 @@ function setPreviewWidth(width) {
 }
 
 document.getElementById('email-body')?.addEventListener('input', updatePreview);
+
+// 件名に変数を挿入
+function insertSubjectVariable(varName) {
+    const input = document.getElementById('email-subject');
+    const variable = '{{ '{{' }} ' + varName + ' {{ '}}' }}';
+    const cursorPos = input.selectionStart;
+    const textBefore = input.value.substring(0, cursorPos);
+    const textAfter = input.value.substring(cursorPos);
+    input.value = textBefore + variable + textAfter;
+    input.focus();
+    input.setSelectionRange(cursorPos + variable.length, cursorPos + variable.length);
+    previewSubject();
+}
+
+// 件名プレビュー
+function previewSubject() {
+    const subject = document.getElementById('email-subject').value;
+    const previewDiv = document.getElementById('subject-preview');
+    const previewText = document.getElementById('subject-preview-text');
+    
+    if (!subject.trim()) {
+        previewDiv.classList.add('d-none');
+        return;
+    }
+    
+    // 変数をサンプル値に置き換え
+    let preview = subject
+        .replace(/\{\{\s*lead_name\s*\}\}/g, '山田 太郎')
+        .replace(/\{\{\s*lead_email\s*\}\}/g, 'yamada@example.com')
+        .replace(/\{\{\s*lead_school_name\s*\}\}/g, '○○高校')
+        .replace(/\{\{\s*lead_graduation_year\s*\}\}/g, '2026');
+    
+    previewText.textContent = preview;
+    previewDiv.classList.remove('d-none');
+}
+
+// 件名入力時にリアルタイムプレビュー
+document.getElementById('email-subject')?.addEventListener('input', previewSubject);
 </script>
 {% endblock %}

@@ -1,0 +1,183 @@
+{% extends "ui_base.html" %}
+{% block title %}送信ログ詳細 - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/send-logs">配信ログ一覧</a></li>
+        <li class="breadcrumb-item active">詳細 #{{ log.id }}</li>
+    </ol>
+</nav>
+
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle"></i> {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>基本情報</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 200px;">送信ログID</th>
+                        <td>#{{ log.id }}</td>
+                    </tr>
+                    <tr>
+                        <th>ステータス</th>
+                        <td>
+                            {% if log.status.value == 'scheduled' %}
+                            <span class="badge bg-info fs-6">予約中</span>
+                            {% elif log.status.value == 'sent' %}
+                            <span class="badge bg-success fs-6">送信済</span>
+                            {% elif log.status.value == 'failed' %}
+                            <span class="badge bg-danger fs-6">失敗</span>
+                            {% elif log.status.value == 'blocked' %}
+                            <span class="badge bg-secondary fs-6">ブロック</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>チャネル</th>
+                        <td>
+                            {% if log.channel.value == 'line' %}
+                            <span class="badge bg-success">LINE</span>
+                            {% else %}
+                            <span class="badge bg-primary">Email</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>リード</th>
+                        <td>
+                            {% if lead %}
+                            <a href="/ui/leads/{{ lead.id }}">{{ lead.email }}</a>
+                            {% if lead.name %}
+                            <span class="text-muted">({{ lead.name }})</span>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted">ID: {{ log.lead_id }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>シナリオ</th>
+                        <td>
+                            {% if scenario %}
+                            <a href="/ui/scenarios/{{ scenario.id }}">{{ scenario.name }}</a>
+                            {% else %}
+                            <span class="text-muted">ID: {{ log.scenario_id }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>テンプレート</th>
+                        <td>
+                            {% if template %}
+                            <a href="/ui/templates/{{ template.id }}">{{ template.name }}</a>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>予定送信日時</th>
+                        <td>{{ log.scheduled_for.strftime('%Y-%m-%d %H:%M:%S') if log.scheduled_for else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>実際の送信日時</th>
+                        <td>
+                            {% if log.sent_at %}
+                            {{ log.sent_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                            <span class="text-muted">未送信</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>開封日時</th>
+                        <td>
+                            {% if log.opened_at %}
+                            <span class="text-success">
+                                <i class="bi bi-eye"></i> {{ log.opened_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            </span>
+                            {% else %}
+                            <span class="text-muted">未開封</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>送信試行回数</th>
+                        <td>{{ log.attempt_count }}回</td>
+                    </tr>
+                    <tr>
+                        <th>作成日時</th>
+                        <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '-' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        {% if log.error_message %}
+        <div class="card mb-4 border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>エラーメッセージ</h5>
+            </div>
+            <div class="card-body">
+                <pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word;">{{ log.error_message }}</pre>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if log.provider_message_id %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-envelope-check me-2"></i>プロバイダー情報</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 200px;">メッセージID</th>
+                        <td><code>{{ log.provider_message_id }}</code></td>
+                    </tr>
+                    {% if log.original_recipient %}
+                    <tr>
+                        <th>送信先</th>
+                        <td>{{ log.original_recipient }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">操作</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="/ui/send-logs" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> 一覧に戻る
+                    </a>
+                    {% if can_edit and log.status.value in ['failed', 'blocked'] %}
+                    <form method="POST" action="/ui/send-logs/{{ log.id }}/resend" class="d-grid">
+                        <button type="submit" class="btn btn-warning" 
+                                onclick="return confirm('この送信ログを再送信しますか？')">
+                            <i class="bi bi-arrow-repeat"></i> 再送信
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

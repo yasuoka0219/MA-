@@ -109,6 +109,7 @@ async def template_new(
         **get_base_context(request, user),
         "template": None,
         "is_new": True,
+        "flex_json_str": "",
     })
 
 
@@ -133,16 +134,30 @@ async def template_create(
         channel = ChannelType.EMAIL
     
     flex_json = None
-    if flex_message_json:
+    if flex_message_json and flex_message_json.strip():
         try:
-            flex_json = json.loads(flex_message_json)
-        except json.JSONDecodeError:
+            flex_json = json.loads(flex_message_json.strip())
+            # Flex Messageの基本構造をチェック
+            if not isinstance(flex_json, dict):
+                raise ValueError("Flex Message JSONはオブジェクトである必要があります")
+        except json.JSONDecodeError as e:
+            error_msg = f"Flex Message JSONの形式が不正です: {str(e)}"
             response = Response(
-                content="<div class='alert alert-danger'>Flex Message JSONの形式が不正です</div>",
+                content=f"<div class='alert alert-danger'>{error_msg}</div>",
                 media_type="text/html"
             )
             response.headers["HX-Trigger"] = json.dumps({
-                "showToast": {"type": "danger", "message": "Flex Message JSONの形式が不正です"}
+                "showToast": {"type": "danger", "message": error_msg}
+            })
+            return response
+        except ValueError as e:
+            error_msg = f"Flex Message JSONの形式が不正です: {str(e)}"
+            response = Response(
+                content=f"<div class='alert alert-danger'>{error_msg}</div>",
+                media_type="text/html"
+            )
+            response.headers["HX-Trigger"] = json.dumps({
+                "showToast": {"type": "danger", "message": error_msg}
             })
             return response
     
@@ -202,10 +217,16 @@ async def template_edit(
     if template.status == TemplateStatus.APPROVED:
         return RedirectResponse(url=f"/ui/templates/{template_id}", status_code=302)
     
+    # Flex Message JSONを文字列に変換
+    flex_json_str = ""
+    if template.flex_message_json:
+        flex_json_str = json.dumps(template.flex_message_json, ensure_ascii=False, indent=2)
+    
     return templates.TemplateResponse("ui_template_form.html", {
         **get_base_context(request, user),
         "template": template,
         "is_new": False,
+        "flex_json_str": flex_json_str,
     })
 
 
@@ -230,16 +251,30 @@ async def template_update(
         return RedirectResponse(url=f"/ui/templates/{template_id}", status_code=302)
     
     flex_json = None
-    if flex_message_json:
+    if flex_message_json and flex_message_json.strip():
         try:
-            flex_json = json.loads(flex_message_json)
-        except json.JSONDecodeError:
+            flex_json = json.loads(flex_message_json.strip())
+            # Flex Messageの基本構造をチェック
+            if not isinstance(flex_json, dict):
+                raise ValueError("Flex Message JSONはオブジェクトである必要があります")
+        except json.JSONDecodeError as e:
+            error_msg = f"Flex Message JSONの形式が不正です: {str(e)}"
             response = Response(
-                content="<div class='alert alert-danger'>Flex Message JSONの形式が不正です</div>",
+                content=f"<div class='alert alert-danger'>{error_msg}</div>",
                 media_type="text/html"
             )
             response.headers["HX-Trigger"] = json.dumps({
-                "showToast": {"type": "danger", "message": "Flex Message JSONの形式が不正です"}
+                "showToast": {"type": "danger", "message": error_msg}
+            })
+            return response
+        except ValueError as e:
+            error_msg = f"Flex Message JSONの形式が不正です: {str(e)}"
+            response = Response(
+                content=f"<div class='alert alert-danger'>{error_msg}</div>",
+                media_type="text/html"
+            )
+            response.headers["HX-Trigger"] = json.dumps({
+                "showToast": {"type": "danger", "message": error_msg}
             })
             return response
     
@@ -274,14 +309,19 @@ async def template_submit(
     template.status = TemplateStatus.PENDING
     template.updated_at = datetime.now(timezone.utc)
     db.commit()
+    db.refresh(template)
     
     create_audit_log(db, user, "submit", "template", template_id)
     
+    # ページ全体をリロードするためにHTMXイベントを使用
     response = Response(
-        content="<span class='badge bg-warning'>承認待ち</span>",
+        content="<span class='badge bg-warning fs-6'>承認待ち</span>",
         media_type="text/html"
     )
-    response.headers["HX-Trigger"] = json.dumps({"showToast": {"message": "承認申請しました", "type": "success"}})
+    response.headers["HX-Trigger"] = json.dumps({
+        "showToast": {"message": "承認申請しました", "type": "success"},
+        "refreshPage": True
+    })
     return response
 
 
@@ -303,14 +343,19 @@ async def template_approve(
     template.approved_at = datetime.now(timezone.utc)
     template.approved_by = user.id
     db.commit()
+    db.refresh(template)
     
     create_audit_log(db, user, "approve", "template", template_id)
     
+    # ページ全体をリロードするためにHTMXイベントを使用
     response = Response(
-        content="<span class='badge bg-success'>承認済み</span>",
+        content="<span class='badge bg-success fs-6'>承認済み</span>",
         media_type="text/html"
     )
-    response.headers["HX-Trigger"] = json.dumps({"showToast": {"message": "承認しました", "type": "success"}})
+    response.headers["HX-Trigger"] = json.dumps({
+        "showToast": {"message": "承認しました", "type": "success"},
+        "refreshPage": True
+    })
     return response
 
 
@@ -333,14 +378,19 @@ async def template_reject(
     template.rejected_reason = reason
     template.updated_at = datetime.now(timezone.utc)
     db.commit()
+    db.refresh(template)
     
     create_audit_log(db, user, "reject", "template", template_id, {"reason": reason})
     
+    # ページ全体をリロードするためにHTMXイベントを使用
     response = Response(
-        content="<span class='badge bg-danger'>却下</span>",
+        content="<span class='badge bg-danger fs-6'>却下</span>",
         media_type="text/html"
     )
-    response.headers["HX-Trigger"] = json.dumps({"showToast": {"message": "却下しました", "type": "warning"}})
+    response.headers["HX-Trigger"] = json.dumps({
+        "showToast": {"message": "却下しました", "type": "warning"},
+        "refreshPage": True
+    })
     return response
 
 

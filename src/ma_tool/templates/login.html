@@ -49,12 +49,20 @@
                     {% endif %}
 
                     <form method="POST" action="/ui/login">
-                        <div class="mb-4">
+                        <div class="mb-3">
                             <label for="email" class="form-label">メールアドレス</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-envelope"></i></span>
                                 <input type="email" class="form-control" id="email" name="email" 
                                        value="{{ email|default('') }}" placeholder="user@example.com" required autofocus>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label for="password" class="form-label">パスワード</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       placeholder="パスワードを入力" required>
                             </div>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 py-2">

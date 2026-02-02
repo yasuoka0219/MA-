@@ -1,7 +1,8 @@
 """Segment filtering service for scenario target leads"""
 import json
+from datetime import date
 from typing import List, Optional, Tuple
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import Session
 from email_validator import validate_email, EmailNotValidError
 
@@ -9,6 +10,8 @@ from src.ma_tool.models.lead import Lead
 from src.ma_tool.models.scenario import Scenario
 from src.ma_tool.models.calendar_event import CalendarEvent
 from src.ma_tool.models.lead_event_registration import LeadEventRegistration, RegistrationStatus
+from src.ma_tool.services.csv_normalizer import normalize_grade_label
+from src.ma_tool.services.csv_import import estimate_graduation_year_from_grade
 
 
 def apply_segment_conditions(
@@ -26,6 +29,25 @@ def apply_segment_conditions(
     if scenario.segment_graduation_year_to:
         conditions.append(Lead.graduation_year <= scenario.segment_graduation_year_to)
     
+    if scenario.segment_grade_in:
+        try:
+            grades = json.loads(scenario.segment_grade_in)
+            if isinstance(grades, list) and grades:
+                grade_years = []
+                today = date.today()
+                for grade_str in grades:
+                    grade_num = normalize_grade_label(grade_str)
+                    if grade_num:
+                        grad_year = estimate_graduation_year_from_grade(grade_num)
+                        grade_years.append(grad_year)
+                if grade_years:
+                    conditions.append(Lead.graduation_year.in_(grade_years))
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    if scenario.segment_prefecture:
+        # 都道府県は学校名に含まれる可能性が高いため、学校名で検索
+        conditions.append(Lead.school_name.ilike(f"%{scenario.segment_prefecture}%"))
     
     if scenario.segment_school_name:
         conditions.append(Lead.school_name.ilike(f"%{scenario.segment_school_name}%"))
@@ -134,8 +156,42 @@ def get_target_leads_for_scenario(
         except (json.JSONDecodeError, TypeError):
             pass
     
-    count_query = select(Lead.id).where(query.whereclause) if query.whereclause else select(Lead.id)
-    total_count = len(list(db.execute(count_query).scalars().all()))
+    # カウントクエリを構築（queryと同じ条件を使用）
+    # メールアドレスのバリデーション前のカウントを取得するため、同じ条件で再構築
+    count_query = get_base_eligible_leads_query(db, scenario)
+    
+    if scenario.base_date_type == "event_date" and calendar_event:
+        status_list = get_status_filter_list(scenario)
+        reg_stmt = select(LeadEventRegistration.lead_id).where(
+            and_(
+                LeadEventRegistration.calendar_event_id == calendar_event.id,
+                LeadEventRegistration.status.in_(status_list)
+            )
+        )
+        registered_lead_ids = [r for r in db.execute(reg_stmt).scalars().all()]
+        if registered_lead_ids:
+            count_query = count_query.where(Lead.id.in_(registered_lead_ids))
+        else:
+            return [], 0
+    
+    count_query = apply_segment_conditions(count_query, scenario)
+    
+    if scenario.graduation_year_rule:
+        try:
+            rule = json.loads(scenario.graduation_year_rule)
+            if "exact" in rule:
+                count_query = count_query.where(Lead.graduation_year == rule["exact"])
+            if "min" in rule:
+                count_query = count_query.where(Lead.graduation_year >= rule["min"])
+            if "max" in rule:
+                count_query = count_query.where(Lead.graduation_year <= rule["max"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    # カウントを取得（メールアドレスのバリデーション前）
+    # count_queryはselect(Lead)なので、func.count()を使ってカウントを取得
+    count_stmt = select(func.count()).select_from(count_query.subquery())
+    total_count = db.execute(count_stmt).scalar() or 0
     
     if limit:
         query = query.limit(limit)

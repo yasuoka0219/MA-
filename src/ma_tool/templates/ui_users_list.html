@@ -1,0 +1,118 @@
+{% extends "ui_base.html" %}
+{% block title %}ユーザー管理 - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/dashboard">ダッシュボード</a></li>
+        <li class="breadcrumb-item active">ユーザー管理</li>
+    </ol>
+</nav>
+
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle"></i> {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people me-2"></i>ユーザー管理</h2>
+    <a href="/ui/users/new" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> 新規ユーザー登録
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">ロール</label>
+                <select name="role_filter" class="form-select" onchange="this.form.submit()">
+                    <option value="">すべて</option>
+                    {% for r in roles %}
+                    <option value="{{ r }}" {% if role_filter == r %}selected{% endif %}>
+                        {{ r }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-9 d-flex align-items-end">
+                <a href="/ui/users" class="btn btn-outline-secondary">クリア</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>メールアドレス</th>
+                    <th>名前</th>
+                    <th>ロール</th>
+                    <th>ステータス</th>
+                    <th>作成日時</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.id }}</td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.name }}</td>
+                    <td>
+                        <span class="badge bg-secondary">{{ u.role.value }}</span>
+                    </td>
+                    <td>
+                        {% if u.is_active %}
+                        <span class="badge bg-success">有効</span>
+                        {% else %}
+                        <span class="badge bg-secondary">無効</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}</td>
+                    <td>
+                        <div class="btn-group">
+                            <a href="/ui/users/{{ u.id }}/edit" class="btn btn-outline-primary btn-sm"
+                               data-bs-toggle="tooltip" data-bs-placement="top" title="編集">
+                                <i class="bi bi-pencil"></i> 編集
+                            </a>
+                            {% if u.id != current_user.id %}
+                            <form method="POST" action="/ui/users/{{ u.id }}/delete" class="d-inline"
+                                  onsubmit="return confirm('このユーザーを削除（無効化）しますか？')">
+                                <button type="submit" class="btn btn-outline-danger btn-sm"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="削除">
+                                    <i class="bi bi-trash"></i> 削除
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        ユーザーが見つかりません
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+// Bootstrap tooltipの初期化
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+{% endblock %}

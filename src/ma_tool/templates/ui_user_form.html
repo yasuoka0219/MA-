@@ -1,0 +1,110 @@
+{% extends "ui_base.html" %}
+{% block title %}{% if is_new %}新規ユーザー登録{% else %}ユーザー編集{% endif %} - MA Tool{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/ui/users">ユーザー管理</a></li>
+        <li class="breadcrumb-item active">{% if is_new %}新規登録{% else %}編集{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">{% if is_new %}新規ユーザー登録{% else %}ユーザー編集{% endif %}</h5>
+    </div>
+    <div class="card-body">
+        {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{% if is_new %}/ui/users/new{% else %}/ui/users/{{ target_user.id }}/edit{% endif %}">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">メールアドレス <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" 
+                               value="{% if target_user %}{{ target_user.email }}{% elif form_data %}{{ form_data.email }}{% endif %}" 
+                               required>
+                        <div class="form-text">ログイン時に使用するメールアドレスです。</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">名前 <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" 
+                               value="{% if target_user %}{{ target_user.name }}{% elif form_data %}{{ form_data.name }}{% endif %}" 
+                               required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">ロール <span class="text-danger">*</span></label>
+                        <select name="role" class="form-select" required>
+                            {% for r in roles %}
+                            <option value="{{ r }}" 
+                                    {% if target_user and target_user.role.value == r %}selected
+                                    {% elif form_data and form_data.role == r %}selected
+                                    {% elif not target_user and not form_data and r == 'viewer' %}selected{% endif %}>
+                                {{ r }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            <strong>admin</strong>: すべての操作が可能<br>
+                            <strong>editor</strong>: テンプレート・シナリオの作成・編集が可能<br>
+                            <strong>approver</strong>: テンプレートの承認が可能<br>
+                            <strong>viewer</strong>: 閲覧のみ可能
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">ステータス</label>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="is_active" 
+                                   {% if target_user and target_user.is_active %}checked
+                                   {% elif form_data and form_data.is_active %}checked
+                                   {% elif is_new %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">
+                                有効
+                            </label>
+                        </div>
+                        <div class="form-text">無効にするとログインできなくなります。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="mb-3">
+                        <label class="form-label">{% if is_new %}パスワード{% else %}パスワード（変更する場合のみ）{% endif %} <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                            <input type="password" name="password" class="form-control" 
+                                   {% if is_new %}required{% endif %}
+                                   placeholder="{% if is_new %}8文字以上{% else %}変更しない場合は空欄{% endif %}">
+                        </div>
+                        <div class="form-text">{% if is_new %}8文字以上で設定してください{% else %}変更しない場合は空欄のままにしてください（空欄の場合は現在のパスワードが維持されます）{% endif %}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check"></i> {% if is_new %}登録{% else %}更新{% endif %}
+                </button>
+                <a href="/ui/users" class="btn btn-outline-secondary">
+                    キャンセル
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

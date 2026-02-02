@@ -33,13 +33,24 @@
                 <h6><i class="bi bi-info-circle"></i> 対応CSVフォーマット</h6>
                 <p class="mb-2">以下のヘッダーを認識します：</p>
                 <ul class="mb-0">
-                    <li><strong>個人ID</strong> → external_id</li>
-                    <li><strong>漢字氏名</strong> → name</li>
-                    <li><strong>高校正式名称</strong> → school_name</li>
-                    <li><strong>卒年</strong> → graduation_year</li>
-                    <li><strong>メールアドレス1</strong> → email（優先）</li>
+                    <li><strong>個人ID</strong> → external_id（任意）</li>
+                    <li><strong>漢字氏名</strong> → name（推奨）</li>
+                    <li><strong>メールアドレス1</strong> → email（必須・優先）</li>
                     <li><strong>メールアドレス2</strong> → email（フォールバック）</li>
+                    <li><strong>卒年</strong> → graduation_year（必須、または学年を指定）</li>
+                    <li><strong>学年</strong> → grade_label（卒年がない場合の代替）</li>
+                    <li><strong>高校正式名称</strong> → school_name（推奨）</li>
+                    <li><strong>興味関心タグ</strong> → interest_tags（任意）</li>
+                    <li><strong>同意</strong> → consent（任意、デフォルト: はい）</li>
                 </ul>
+            </div>
+            
+            <div class="alert alert-warning">
+                <h6><i class="bi bi-download"></i> CSV見本をダウンロード</h6>
+                <p class="mb-2">フォーマットが分からない場合は、見本ファイルをダウンロードしてご利用ください。</p>
+                <a href="/ui/import/template" class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-download"></i> CSV見本をダウンロード
+                </a>
             </div>
             
             <div class="d-flex gap-2">

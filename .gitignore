@@ -26,6 +26,9 @@ env/
 
 # Environment files (but not .env.example)
 .env
+.env.*
+!.env.example
+!.env.production.example
 
 # Compiled files
 *.so

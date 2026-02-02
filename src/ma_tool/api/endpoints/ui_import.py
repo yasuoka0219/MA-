@@ -1,4 +1,5 @@
 """UI CSV Import endpoint with file upload and progress display"""
+import csv
 import io
 import json
 from typing import Optional
@@ -142,3 +143,78 @@ async def import_confirm(
         }
     })
     return response
+
+
+@router.get("/import/template", response_class=Response)
+async def download_template(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """CSVインポート用の見本ファイルをダウンロード"""
+    user, redirect = require_login(request, db)
+    if redirect:
+        return redirect
+    
+    # CSV見本を生成
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # ヘッダー行（日本語名で統一）
+    writer.writerow([
+        "個人ID",
+        "漢字氏名",
+        "メールアドレス1",
+        "メールアドレス2",
+        "卒年",
+        "学年",
+        "高校正式名称",
+        "興味関心タグ",
+        "同意"
+    ])
+    
+    # サンプルデータ（3行）
+    writer.writerow([
+        "STU001",
+        "山田太郎",
+        "yamada.taro@example.com",
+        "",
+        "2026",
+        "",
+        "東京都立○○高等学校",
+        "情報工学部,コンピュータサイエンス",
+        "はい"
+    ])
+    writer.writerow([
+        "STU002",
+        "佐藤花子",
+        "sato.hanako@example.com",
+        "",
+        "2027",
+        "",
+        "神奈川県立△△高等学校",
+        "経済学部",
+        "はい"
+    ])
+    writer.writerow([
+        "STU003",
+        "鈴木一郎",
+        "suzuki.ichiro@example.com",
+        "",
+        "",
+        "高2",
+        "埼玉県立□□高等学校",
+        "法学部",
+        "はい"
+    ])
+    
+    # UTF-8 BOM付きで返す（Excelで開きやすくするため）
+    csv_content = output.getvalue()
+    csv_bytes = csv_content.encode('utf-8-sig')
+    
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="leads_import_template.csv"'
+        }
+    )

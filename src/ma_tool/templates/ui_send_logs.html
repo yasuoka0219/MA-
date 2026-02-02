@@ -4,7 +4,21 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-envelope me-2"></i>配信ログ</h2>
+    {% if lead %}
+    <div>
+        <a href="/ui/leads/{{ lead.id }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> リード詳細に戻る
+        </a>
+    </div>
+    {% endif %}
 </div>
+
+{% if lead %}
+<div class="alert alert-info mb-4">
+    <i class="bi bi-info-circle"></i> 
+    <strong>{{ lead.email }}</strong> への送信履歴を表示しています
+</div>
+{% endif %}
 
 <div class="row mb-4">
     <div class="col-md-2">
@@ -112,20 +126,25 @@
                         {% endif %}
                     </td>
                     <td>
+                        <a href="/ui/send-logs/{{ log.id }}" class="btn btn-sm btn-outline-primary" 
+                           data-bs-toggle="tooltip" data-bs-placement="top" title="詳細を表示">
+                            <i class="bi bi-eye"></i> 詳細
+                        </a>
                         {% if log.error_message %}
-                        <small class="text-danger" title="{{ log.error_message }}">
+                        <small class="text-danger d-block mt-1" title="{{ log.error_message }}">
                             {{ log.error_message[:30] }}{% if log.error_message|length > 30 %}...{% endif %}
                         </small>
                         {% elif log.provider_message_id %}
-                        <small class="text-muted">{{ log.provider_message_id[:15] }}...</small>
-                        {% else %}
-                        -
+                        <small class="text-muted d-block mt-1">{{ log.provider_message_id[:15] }}...</small>
                         {% endif %}
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">配信ログがありません</td>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        配信ログがありません
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -133,7 +152,7 @@
     </div>
 </div>
 
-{% if logs|length >= per_page %}
+{% if total_count and total_count > per_page %}
 <nav class="mt-4">
     <ul class="pagination justify-content-center">
         {% if page > 1 %}
@@ -142,12 +161,30 @@
         </li>
         {% endif %}
         <li class="page-item disabled">
-            <span class="page-link">ページ {{ page }}</span>
+            <span class="page-link">
+                {% if total_count > 0 %}
+                {{ start_item }}-{{ end_item }}件 / 全{{ total_count }}件 ({{ page }} / {{ total_pages }}ページ)
+                {% else %}
+                0件
+                {% endif %}
+            </span>
         </li>
+        {% if page * per_page < total_count %}
         <li class="page-item">
             <a class="page-link" href="?page={{ page + 1 }}&status_filter={{ status_filter }}&channel_filter={{ channel_filter }}&days={{ days }}">次へ</a>
         </li>
+        {% endif %}
     </ul>
 </nav>
 {% endif %}
+
+<script>
+// Bootstrap tooltipの初期化
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
 {% endblock %}
