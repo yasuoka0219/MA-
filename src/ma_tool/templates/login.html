@@ -70,9 +70,27 @@
                         </button>
                     </form>
 
+                    <p class="text-center mt-3 mb-0">
+                        <a href="/ui/forgot-password" class="btn btn-outline-secondary btn-sm w-100">
+                            <i class="bi bi-key"></i> パスワードを忘れた（再設定用メールを送信）
+                        </a>
+                    </p>
+
                     <hr class="my-4">
                     <p class="text-center text-muted small mb-0">
                         <i class="bi bi-shield-check"></i> 登録されたユーザーのみログイン可能です
+                    </p>
+                    {% if show_setup_link %}
+                    <p class="text-center mt-3 mb-0">
+                        <a href="/ui/setup" class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-person-plus"></i> 初回セットアップ（最初の管理者を作成）
+                        </a>
+                    </p>
+                    {% endif %}
+                    <p class="text-center mt-2 mb-0">
+                        <a href="/ui/forgot-login" class="text-muted small text-decoration-none">
+                            <i class="bi bi-question-circle"></i> ログイン情報の再設定方法について
+                        </a>
                     </p>
                 </div>
             </div>

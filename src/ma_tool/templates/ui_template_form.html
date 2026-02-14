@@ -37,10 +37,10 @@
                 <div class="mb-3">
                     <label class="form-label">件名 <span class="text-muted small">(Email Subject)</span></label>
                     <div class="input-group mb-2">
-                        <input type="text" name="subject" class="form-control" id="email-subject" value="{{ template.subject if template else '' }}" placeholder="例: {{ '{{' }} lead_name {{ '}}' }}様へのご案内">
+                        <input type="text" name="subject" class="form-control" id="email-subject" value="{{ template.subject if template else '' }}" placeholder="例: 〇〇様へのご案内（下の「差し込み項目を挿入」→「氏名」で相手の名前に変わります）">
                         <div class="btn-group">
                             <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="subject-variable-dropdown">
-                                <i class="bi bi-plus-circle"></i> 変数を挿入
+                                <i class="bi bi-plus-circle"></i> 差し込み項目を挿入
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="subject-variable-dropdown">
                                 <li>
@@ -49,9 +49,8 @@
                                             <i class="bi bi-person me-2"></i>
                                             <div class="flex-grow-1">
                                                 <div class="fw-bold">氏名</div>
-                                                <small class="text-muted">リードの名前が入ります</small>
+                                                <small class="text-muted">送信する相手の名前が自動で入ります</small>
                                             </div>
-                                            <code class="ms-2 small">{{ '{{' }} lead_name {{ '}}' }}</code>
                                         </div>
                                     </a>
                                 </li>
@@ -61,9 +60,8 @@
                                             <i class="bi bi-envelope me-2"></i>
                                             <div class="flex-grow-1">
                                                 <div class="fw-bold">メールアドレス</div>
-                                                <small class="text-muted">リードのメールアドレスが入ります</small>
+                                                <small class="text-muted">送信する相手のメールアドレスが自動で入ります</small>
                                             </div>
-                                            <code class="ms-2 small">{{ '{{' }} lead_email {{ '}}' }}</code>
                                         </div>
                                     </a>
                                 </li>
@@ -73,9 +71,8 @@
                                             <i class="bi bi-building me-2"></i>
                                             <div class="flex-grow-1">
                                                 <div class="fw-bold">高校名</div>
-                                                <small class="text-muted">リードの高校名が入ります</small>
+                                                <small class="text-muted">送信する相手の高校名が自動で入ります</small>
                                             </div>
-                                            <code class="ms-2 small">{{ '{{' }} lead_school_name {{ '}}' }}</code>
                                         </div>
                                     </a>
                                 </li>
@@ -85,9 +82,8 @@
                                             <i class="bi bi-calendar3 me-2"></i>
                                             <div class="flex-grow-1">
                                                 <div class="fw-bold">卒業年度</div>
-                                                <small class="text-muted">リードの卒業年度が入ります</small>
+                                                <small class="text-muted">送信する相手の卒業年度が自動で入ります</small>
                                             </div>
-                                            <code class="ms-2 small">{{ '{{' }} lead_graduation_year {{ '}}' }}</code>
                                         </div>
                                     </a>
                                 </li>
@@ -105,9 +101,21 @@
                     </div>
                 </div>
                 <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                         <label class="form-label mb-0">本文（HTML）</label>
                         <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="body-variable-dropdown">
+                                <i class="bi bi-plus-circle"></i> 差し込み項目を挿入
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="body-variable-dropdown">
+                                <li><a class="dropdown-item" href="#" onclick="insertBodyVariable('lead_name'); return false;"><i class="bi bi-person me-2"></i>氏名（相手の名前）</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertBodyVariable('lead_email'); return false;"><i class="bi bi-envelope me-2"></i>メールアドレス</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertBodyVariable('lead_school_name'); return false;"><i class="bi bi-building me-2"></i>高校名</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertBodyVariable('lead_graduation_year'); return false;"><i class="bi bi-calendar3 me-2"></i>卒業年度</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertBodyVariable('unsubscribe_url'); return false;"><i class="bi bi-link me-2"></i>配信停止リンク</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="insertBodyVariable('line_friend_add_url'); return false;"><i class="bi bi-chat-dots me-2"></i>LINE友だち追加URL</a></li>
+                            </ul>
                             <button type="button" class="btn btn-outline-success" onclick="insertLineUrl()">
                                 <i class="bi bi-chat-dots"></i> LINE友だち追加URLを挿入
                             </button>
@@ -134,13 +142,7 @@
                         </div>
                     </div>
                     <div class="form-text mt-2">
-                        <strong>利用可能な変数:</strong>
-                        <code>{{ '{{' }} lead_name {{ '}}' }}</code> - 氏名 |
-                        <code>{{ '{{' }} lead_email {{ '}}' }}</code> - メールアドレス |
-                        <code>{{ '{{' }} lead_school_name {{ '}}' }}</code> - 高校名 |
-                        <code>{{ '{{' }} lead_graduation_year {{ '}}' }}</code> - 卒業年度 |
-                        <code>{{ '{{' }} unsubscribe_url {{ '}}' }}</code> - 配信停止リンク |
-                        <code>{{ '{{' }} line_friend_add_url {{ '}}' }}</code> - LINE友だち追加URL
+                        <strong>差し込み項目について：</strong> 件名・本文に「差し込み項目を挿入」から<strong>氏名・メールアドレス・高校名・卒業年度</strong>などを選ぶと、送信する相手ごとに自動でその人の情報に置き換わります。配信停止リンクやLINE友だち追加URLも同じボタンから挿入できます。
                     </div>
                 </div>
             </div>
@@ -150,7 +152,7 @@
                     <label class="form-label">メッセージテキスト</label>
                     <textarea name="message_text" class="form-control" rows="5" placeholder="LINEに送信するテキストメッセージ">{{ template.message_text if template else '' }}</textarea>
                     <div class="form-text">
-                        利用可能な変数: <code>{name}</code>, <code>{school_name}</code>, <code>{graduation_year}</code>
+                        本文と同様、送信相手の氏名・高校名・卒業年度などが送信時に自動で入る差し込みが利用できます。
                     </div>
                 </div>
                 <div class="mb-3">
@@ -184,7 +186,7 @@ toggleChannelFields();
 
 function insertLineUrl() {
     const textarea = document.getElementById('email-body');
-    const lineHtml = '\n<p style="text-align: center; margin-top: 20px;">\n  <a href="{{ line_friend_add_url }}" style="display: inline-block; background-color: #06C755; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">\n    <span style="font-size: 18px;">&#x1F4AC;</span> LINEで最新情報を受け取る\n  </a>\n</p>\n';
+    const lineHtml = '\n<p style="text-align: center; margin-top: 20px;">\n  <a href="{{ '{{' }} line_friend_add_url {{ '}}' }}" style="display: inline-block; background-color: #06C755; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">\n    <span style="font-size: 18px;">&#x1F4AC;</span> LINEで最新情報を受け取る\n  </a>\n</p>\n';
     const cursorPos = textarea.selectionStart;
     const textBefore = textarea.value.substring(0, cursorPos);
     const textAfter = textarea.value.substring(cursorPos);
@@ -228,7 +230,7 @@ function setPreviewWidth(width) {
 
 document.getElementById('email-body')?.addEventListener('input', updatePreview);
 
-// 件名に変数を挿入
+// 件名に差し込み項目を挿入
 function insertSubjectVariable(varName) {
     const input = document.getElementById('email-subject');
     const variable = '{{ '{{' }} ' + varName + ' {{ '}}' }}';
@@ -239,6 +241,19 @@ function insertSubjectVariable(varName) {
     input.focus();
     input.setSelectionRange(cursorPos + variable.length, cursorPos + variable.length);
     previewSubject();
+}
+
+// 本文に差し込み項目を挿入
+function insertBodyVariable(varName) {
+    const textarea = document.getElementById('email-body');
+    const variable = '{{ '{{' }} ' + varName + ' {{ '}}' }}';
+    const cursorPos = textarea.selectionStart;
+    const textBefore = textarea.value.substring(0, cursorPos);
+    const textAfter = textarea.value.substring(cursorPos);
+    textarea.value = textBefore + variable + textAfter;
+    textarea.focus();
+    textarea.setSelectionRange(cursorPos + variable.length, cursorPos + variable.length);
+    updatePreview();
 }
 
 // 件名プレビュー
@@ -252,7 +267,7 @@ function previewSubject() {
         return;
     }
     
-    // 変数をサンプル値に置き換え
+    // 差し込み項目をサンプル値に置き換え
     let preview = subject
         .replace(/\{\{\s*lead_name\s*\}\}/g, '山田 太郎')
         .replace(/\{\{\s*lead_email\s*\}\}/g, 'yamada@example.com')

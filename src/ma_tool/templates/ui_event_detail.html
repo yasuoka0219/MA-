@@ -197,12 +197,33 @@
         {% endif %}
         {% endif %}
         
-        <h6>登録済み参加者（{{ registrations|length }}名）</h6>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">登録済み参加者（{{ registrations|length }}名）</h6>
+            {% if can_edit and approved_templates %}
+            <form method="post" action="/ui/events/{{ event.id }}/send-emails" id="event-send-form" class="d-flex align-items-center">
+                <select name="template_id" class="form-select form-select-sm me-2" required>
+                    <option value="">テンプレートを選択</option>
+                    {% for tmpl in approved_templates %}
+                    <option value="{{ tmpl.id }}" data-name="{{ (tmpl.name or '')|e }}" data-subject="{{ (tmpl.subject or '')[:80]|e }}">{{ tmpl.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="selected_lead_ids" id="selected-event-lead-ids" value="">
+                <button type="button" class="btn btn-sm btn-primary" onclick="submitEventSend()" id="event-send-btn" disabled>
+                    <i class="bi bi-envelope me-1"></i>選択した参加者にメール送信
+                </button>
+            </form>
+            {% endif %}
+        </div>
         {% if registrations %}
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead class="table-light">
                     <tr>
+                        <th style="width: 40px;">
+                            {% if can_edit and approved_templates %}
+                            <input type="checkbox" class="form-check-input" id="event-select-all" onchange="toggleEventSelectAll(this)">
+                            {% endif %}
+                        </th>
                         <th>名前</th>
                         <th>メール</th>
                         <th>卒年</th>
@@ -215,6 +236,14 @@
                     {% for reg in registrations %}
                     {% set lead = leads_map.get(reg.lead_id) %}
                     <tr>
+                        <td>
+                            {% if can_edit and lead and lead.email %}
+                            <input type="checkbox"
+                                   class="form-check-input event-lead-checkbox"
+                                   value="{{ lead.id }}"
+                                   onchange="updateEventSendSelection()">
+                            {% endif %}
+                        </td>
                         <td>
                             {% if lead %}
                             <a href="/ui/leads?search={{ lead.email }}">{{ lead.name }}</a>
@@ -260,4 +289,49 @@
         {% endif %}
     </div>
 </div>
+<script>
+function updateEventSendSelection() {
+    const checkboxes = document.querySelectorAll('.event-lead-checkbox:checked');
+    const sendBtn = document.getElementById('event-send-btn');
+    if (sendBtn) {
+        sendBtn.disabled = checkboxes.length === 0;
+    }
+}
+
+function toggleEventSelectAll(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.event-lead-checkbox');
+    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    updateEventSendSelection();
+}
+
+function submitEventSend() {
+    const checkboxes = document.querySelectorAll('.event-lead-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    if (ids.length === 0) {
+        alert('送信対象の参加者を選択してください');
+        return;
+    }
+    const templateSelect = document.querySelector('#event-send-form select[name="template_id"]');
+    if (!templateSelect || !templateSelect.value) {
+        alert('テンプレートを選択してください');
+        return;
+    }
+    const selectedOpt = templateSelect.selectedOptions[0];
+    const templateName = selectedOpt.getAttribute('data-name') || '(テンプレート名)';
+    let subjectPreview = selectedOpt.getAttribute('data-subject') || '(件名なし)';
+    if (subjectPreview.length > 50) {
+        subjectPreview = subjectPreview.substring(0, 50) + '...';
+    }
+    const msg = '以下の内容でメールを送信します。\n\n' +
+        '送信先: ' + ids.length + '名\n' +
+        'テンプレート: ' + templateName + '\n' +
+        '件名: ' + subjectPreview + '\n\n' +
+        'よろしいですか？';
+    if (!confirm(msg)) {
+        return;
+    }
+    document.getElementById('selected-event-lead-ids').value = ids.join(',');
+    document.getElementById('event-send-form').submit();
+}
+</script>
 {% endblock %}

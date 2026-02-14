@@ -16,6 +16,9 @@ from src.ma_tool.models.user import User, UserRole
 from src.ma_tool.models.audit_log import AuditLog
 from src.ma_tool.api.deps import require_session_login
 from src.ma_tool.config import settings
+from src.ma_tool.models.template import Template, TemplateStatus, ChannelType
+from src.ma_tool.services.template_renderer import render_email_body, render_subject
+from src.ma_tool.services.email import send_email
 
 router = APIRouter(prefix="/ui", tags=["UI Events"])
 templates = Jinja2Templates(directory="src/ma_tool/templates")
@@ -229,6 +232,13 @@ async def event_detail(
         search_results = db.execute(query).scalars().all()
         search_results = [l for l in search_results if l.id not in lead_ids]
     
+    approved_templates = db.execute(
+        select(Template).where(
+            Template.status == TemplateStatus.APPROVED,
+            Template.channel_type == ChannelType.EMAIL,
+        )
+    ).scalars().all()
+    
     return templates.TemplateResponse("ui_event_detail.html", {
         **get_base_context(request, user),
         "event": event,
@@ -247,6 +257,7 @@ async def event_detail(
             (RegistrationStatus.CANCELLED, "キャンセル"),
         ],
         "can_edit": can_edit(user),
+        "approved_templates": approved_templates,
     })
 
 
@@ -461,3 +472,105 @@ async def update_registration_status(
         create_audit_log(db, user, "update_registration_status", "calendar_event", event_id, {"reg_id": reg_id, "status": status})
     
     return RedirectResponse(url=f"/ui/events/{event_id}", status_code=302)
+
+
+@router.post("/events/{event_id}/send-emails")
+async def event_send_emails(
+    request: Request,
+    event_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_session_login),
+    template_id: int = Form(...),
+    selected_lead_ids: str = Form(...),
+):
+    """イベント参加者に対する一括メール送信（UIからの手動送信）"""
+    if not can_edit(user):
+        return RedirectResponse(url=f"/ui/events/{event_id}", status_code=302)
+    
+    event = db.get(CalendarEvent, event_id)
+    if not event:
+        return RedirectResponse(url="/ui/events", status_code=302)
+    
+    selected_lead_ids = (selected_lead_ids or "").strip()
+    if not selected_lead_ids:
+        return RedirectResponse(
+            url=f"/ui/events/{event_id}?message=送信対象が選択されていません",
+            status_code=302,
+        )
+    
+    try:
+        lead_ids = [int(x.strip()) for x in selected_lead_ids.split(",") if x.strip()]
+    except ValueError:
+        return RedirectResponse(
+            url=f"/ui/events/{event_id}?message=送信対象のIDが不正です",
+            status_code=302,
+        )
+    
+    if not lead_ids:
+        return RedirectResponse(
+            url=f"/ui/events/{event_id}?message=送信対象が選択されていません",
+            status_code=302,
+        )
+    
+    template = db.get(Template, template_id)
+    if not template:
+        return RedirectResponse(
+            url=f"/ui/events/{event_id}?message=テンプレートが見つかりません",
+            status_code=302,
+        )
+    
+    if template.status != TemplateStatus.APPROVED or template.channel_type != ChannelType.EMAIL:
+        return RedirectResponse(
+            url=f"/ui/events/{event_id}?message=承認済みのメールテンプレートのみ送信できます",
+            status_code=302,
+        )
+    
+    leads = db.execute(select(Lead).where(Lead.id.in_(lead_ids))).scalars().all()
+    leads_map = {l.id: l for l in leads}
+    
+    sent_count = 0
+    skipped_count = 0
+    
+    for lead_id in lead_ids:
+        lead = leads_map.get(lead_id)
+        if not lead:
+            skipped_count += 1
+            continue
+        
+        # 配信許諾と配信停止、メールアドレスの有無を確認
+        if not lead.consent or lead.unsubscribed or not lead.email:
+            skipped_count += 1
+            continue
+        
+        try:
+            body = render_email_body(template.body_html or "", lead)
+            subject = render_subject(template.subject or "", lead)
+            result = send_email(
+                to_email=lead.email,
+                subject=subject or "",
+                html_content=body,
+            )
+            if result.success:
+                sent_count += 1
+            else:
+                skipped_count += 1
+        except Exception:
+            skipped_count += 1
+    
+    # 監査ログに記録
+    meta = {
+        "template_id": template.id,
+        "lead_ids": lead_ids,
+        "sent_count": sent_count,
+        "skipped_count": skipped_count,
+    }
+    create_audit_log(db, user, "send_emails", "calendar_event", event_id, meta)
+    
+    message = f"{sent_count}件のメールを送信しました"
+    if skipped_count:
+        message += f"（{skipped_count}件は送信対象外またはエラー）"
+    
+    return RedirectResponse(
+        url=f"/ui/events/{event_id}?message={message}",
+        status_code=302,
+    )

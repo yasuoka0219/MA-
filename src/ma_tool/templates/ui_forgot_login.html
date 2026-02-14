@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン情報をお忘れの方 - MA Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .help-card { max-width: 520px; margin: 60px auto; }
+        .env-banner { padding: 10px 16px; text-align: center; font-weight: 500; }
+        .env-dev { background: #ffc107; color: #000; }
+        .env-staging { background: #fd7e14; color: #fff; }
+        .env-prod { background: #dc3545; color: #fff; }
+    </style>
+</head>
+<body>
+    {% if app_env != 'prod' %}
+    <div class="env-banner env-{{ app_env }}">
+        <i class="bi bi-exclamation-triangle"></i>
+        {{ app_env|upper }}環境
+    </div>
+    {% endif %}
+
+    <div class="container">
+        <div class="help-card">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-question-circle text-primary" style="font-size: 2.5rem;"></i>
+                        <h3 class="mt-3">ログイン情報をお忘れの方</h3>
+                    </div>
+
+                    <div class="alert alert-success border-0">
+                        <h6 class="alert-heading"><i class="bi bi-envelope me-2"></i>メールでパスワードを再設定する</h6>
+                        <p class="mb-0">
+                            ログイン画面の<strong>「パスワードを忘れた」</strong>から、登録メールアドレスを入力すると、再設定用のリンクが届きます。リンクを開いて新しいパスワードを設定してください。
+                        </p>
+                        <p class="mb-0 mt-2">
+                            <a href="/ui/forgot-password" class="btn btn-sm btn-outline-success">再設定用メールを送信する</a>
+                        </p>
+                    </div>
+
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="bi bi-person-gear me-2"></i>管理者の方へ（他のユーザーのパスワードをリセットする場合）</h6>
+                            <p class="card-text small mb-0">
+                                管理者権限でログイン後、<strong>「ユーザー管理」</strong>から対象ユーザーを選択し、<strong>編集</strong>で新しいパスワードを設定できます。
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning border-0 mb-4">
+                        <h6 class="alert-heading"><i class="bi bi-key me-2"></i>メールが届かない場合・管理者が1人しかいない場合</h6>
+                        <p class="mb-2 small">
+                            まずは上記の<strong>「再設定用メールを送信する」</strong>でメールが届くかお試しください。届かない場合は、他の管理者に「ユーザー管理」からパスワードを再設定してもらうか、<strong>サーバーにログインできる方</strong>に次のコマンドの実行を依頼してください。
+                        </p>
+                        <pre class="bg-dark text-light p-3 rounded small mb-0"><code># プロジェクトのルートで実行
+.venv/bin/python scripts/reset_user_password.py --email メールアドレス --password "新しいパスワード"</code></pre>
+                        <p class="mt-2 mb-0 small text-muted">
+                            <code>--password</code> を省略すると対話形式で入力できます。<code>DATABASE_URL</code> が必要です。
+                        </p>
+                    </div>
+
+                    <p class="text-muted small mb-4">
+                        初めてご利用になる場合は、まだユーザーが1人も登録されていないときだけ<strong>「初回セットアップ」</strong>から最初の管理者を作成できます。
+                    </p>
+
+                    <div class="d-grid gap-2">
+                        <a href="/ui/login" class="btn btn-primary">
+                            <i class="bi bi-box-arrow-in-right"></i> ログイン画面へ戻る
+                        </a>
+                        {% if show_setup_link %}
+                        <a href="/ui/setup" class="btn btn-outline-secondary">
+                            <i class="bi bi-person-plus"></i> 初回セットアップ（最初の管理者を作成）
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

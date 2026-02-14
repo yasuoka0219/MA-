@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     
     UNSUBSCRIBE_SECRET: str = "change-me-in-production"
     TRACKING_SECRET: str = "change-me-in-production"
+    PASSWORD_RESET_SECRET: str = "change-me-in-production"
+    PASSWORD_RESET_EXPIRE_SECONDS: int = 3600  # 1時間
     BASE_URL: str = "http://localhost:5000"
     
     SCHEDULER_ENABLED: bool = True
@@ -67,6 +69,8 @@ class Settings(BaseSettings):
                 errors.append("TRACKING_SECRET must be set to a secure value in production")
             if self.UNSUBSCRIBE_SECRET == "change-me-in-production":
                 errors.append("UNSUBSCRIBE_SECRET must be set to a secure value in production")
+            if self.PASSWORD_RESET_SECRET == "change-me-in-production":
+                errors.append("PASSWORD_RESET_SECRET must be set to a secure value in production")
             if errors:
                 raise ValueError("; ".join(errors))
     
