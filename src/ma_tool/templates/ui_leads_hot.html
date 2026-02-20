@@ -1,0 +1,142 @@
+{% extends "ui_base.html" %}
+{% block title %}高温度リード - MA Tool{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-fire me-2"></i>高温度リード一覧</h2>
+    <span class="badge bg-secondary">{{ total_count }}件</span>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label">温度</label>
+                <select name="band" class="form-select">
+                    <option value="">すべて</option>
+                    <option value="hot" {% if band == 'hot' %}selected{% endif %}>🔥 Hot ({{ hot_count }})</option>
+                    <option value="warm" {% if band == 'warm' %}selected{% endif %}>🟡 Warm ({{ warm_count }})</option>
+                    <option value="cold" {% if band == 'cold' %}selected{% endif %}>🔵 Cold ({{ cold_count }})</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">卒業年度</label>
+                <select name="graduation_year" class="form-select">
+                    <option value="">すべて</option>
+                    {% for year in graduation_years %}
+                    <option value="{{ year }}" {% if graduation_year == year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">直近反応（日以内）</label>
+                <input type="number" name="days" class="form-control" value="{{ days or '' }}" placeholder="例: 7" min="1">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">PV数（7日）≧</label>
+                <input type="number" name="min_pv" class="form-control" value="{{ min_pv or '' }}" placeholder="例: 5" min="0">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">検索</label>
+                <input type="text" name="search" class="form-control" value="{{ search }}" placeholder="名前/メール">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2"><i class="bi bi-search"></i> 検索</button>
+                <a href="/ui/leads/hot" class="btn btn-outline-secondary">クリア</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>温度</th>
+                    <th>スコア</th>
+                    <th>名前</th>
+                    <th>メール</th>
+                    <th>卒業年</th>
+                    <th>最終反応</th>
+                    <th>直近クリックURL</th>
+                    <th>PV(7日)</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in leads_data %}
+                <tr>
+                    <td>
+                        {% if item.lead.score_band == 'hot' %}
+                        <span class="badge bg-danger">🔥 Hot</span>
+                        {% elif item.lead.score_band == 'warm' %}
+                        <span class="badge bg-warning text-dark">🟡 Warm</span>
+                        {% else %}
+                        <span class="badge bg-info">🔵 Cold</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ item.lead.engagement_score }}</strong></td>
+                    <td>{{ item.lead.name or '-' }}</td>
+                    <td>
+                        <a href="/ui/leads/{{ item.lead.id }}">
+                            {{ item.lead.email[:3] }}***{{ item.lead.email[item.lead.email.index('@'):] }}
+                        </a>
+                    </td>
+                    <td>{{ item.lead.graduation_year or '-' }}</td>
+                    <td>
+                        {% if item.lead.last_engaged_at %}
+                        {{ item.lead.last_engaged_at.strftime('%m/%d %H:%M') }}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.last_click_url %}
+                        <small class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ item.last_click_url }}">
+                            {{ item.last_click_url[:40] }}{% if item.last_click_url|length > 40 %}...{% endif %}
+                        </small>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.pv_7d }}</td>
+                    <td>
+                        <a href="/ui/leads/{{ item.lead.id }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> 詳細
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        該当するリードが見つかりません
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if total_count > per_page %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page > 1 %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page - 1 }}&band={{ band }}&graduation_year={{ graduation_year or '' }}&days={{ days or '' }}&min_pv={{ min_pv or '' }}&search={{ search }}">前へ</a>
+        </li>
+        {% endif %}
+        <li class="page-item disabled">
+            <span class="page-link">{{ page }} / {{ total_pages }}ページ（全{{ total_count }}件）</span>
+        </li>
+        {% if page < total_pages %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page + 1 }}&band={{ band }}&graduation_year={{ graduation_year or '' }}&days={{ days or '' }}&min_pv={{ min_pv or '' }}&search={{ search }}">次へ</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

@@ -10,9 +10,12 @@ from src.ma_tool.models.scenario import Scenario, BaseDateType
 from src.ma_tool.models.send_log import SendLog
 from src.ma_tool.models.audit_log import AuditLog
 from src.ma_tool.models.line_identity import LineIdentity
+from src.ma_tool.models.engagement_event import EngagementEvent, EngagementEventType
+from src.ma_tool.models.web_session import WebSession
 
 __all__ = [
     "Base", "User", "Lead", "Event", "CalendarEvent",
     "LeadEventRegistration", "RegistrationStatus", "Template", "Scenario",
-    "BaseDateType", "SendLog", "AuditLog", "LineIdentity"
+    "BaseDateType", "SendLog", "AuditLog", "LineIdentity",
+    "EngagementEvent", "EngagementEventType", "WebSession"
 ]

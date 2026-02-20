@@ -17,42 +17,63 @@
 {% endif %}
 
 <div class="row">
-    <div class="col-md-8">
+    <div class="col-md-5">
         <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="bi bi-person me-2"></i>基本情報</h5>
             </div>
             <div class="card-body">
                 <table class="table table-borderless">
-                    <tr>
-                        <th style="width: 200px;">メールアドレス</th>
-                        <td>{{ lead.email }}</td>
-                    </tr>
-                    <tr>
-                        <th>名前</th>
-                        <td>{{ lead.name or '-' }}</td>
-                    </tr>
-                    <tr>
-                        <th>学校名</th>
-                        <td>{{ lead.school_name or '-' }}</td>
-                    </tr>
-                    <tr>
-                        <th>卒業年度</th>
-                        <td>{{ lead.graduation_year or '-' }}</td>
-                    </tr>
-                    <tr>
-                        <th>興味関心</th>
-                        <td>{{ lead.interest_tags or '-' }}</td>
-                    </tr>
-                    <tr>
-                        <th>外部ID</th>
-                        <td>{{ lead.external_id or '-' }}</td>
-                    </tr>
-                    <tr>
-                        <th>作成日時</th>
-                        <td>{{ lead.created_at.strftime('%Y-%m-%d %H:%M') if lead.created_at else '-' }}</td>
-                    </tr>
+                    <tr><th style="width: 160px;">メールアドレス</th><td>{{ lead.email }}</td></tr>
+                    <tr><th>名前</th><td>{{ lead.name or '-' }}</td></tr>
+                    <tr><th>学校名</th><td>{{ lead.school_name or '-' }}</td></tr>
+                    <tr><th>卒業年度</th><td>{{ lead.graduation_year or '-' }}</td></tr>
+                    <tr><th>興味関心</th><td>{{ lead.interest_tags or '-' }}</td></tr>
+                    <tr><th>外部ID</th><td>{{ lead.external_id or '-' }}</td></tr>
+                    <tr><th>作成日時</th><td>{{ lead.created_at.strftime('%Y-%m-%d %H:%M') if lead.created_at else '-' }}</td></tr>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-fire me-2"></i>エンゲージメント</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    {% if lead.score_band == 'hot' %}
+                    <span class="badge bg-danger fs-4 px-4 py-2">🔥 Hot</span>
+                    {% elif lead.score_band == 'warm' %}
+                    <span class="badge bg-warning text-dark fs-4 px-4 py-2">🟡 Warm</span>
+                    {% else %}
+                    <span class="badge bg-info fs-4 px-4 py-2">🔵 Cold</span>
+                    {% endif %}
+                </div>
+                <h2 class="mb-1">{{ lead.engagement_score or 0 }}</h2>
+                <small class="text-muted">エンゲージメントスコア</small>
+                {% if lead.last_engaged_at %}
+                <div class="mt-3">
+                    <small class="text-muted">最終反応</small><br>
+                    <strong>{{ lead.last_engaged_at.strftime('%m/%d %H:%M') }}</strong>
+                </div>
+                {% endif %}
+                <hr>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h5 class="mb-0">{{ pv_7d }}</h5>
+                        <small class="text-muted">PV(7日)</small>
+                    </div>
+                    <div class="col-4">
+                        <h5 class="mb-0">{{ click_count }}</h5>
+                        <small class="text-muted">クリック</small>
+                    </div>
+                    <div class="col-4">
+                        <h5 class="mb-0">{{ important_pv_count }}</h5>
+                        <small class="text-muted">重要PV</small>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -66,34 +87,31 @@
                 <div class="mb-3">
                     <strong>同意状況</strong><br>
                     {% if lead.consent %}
-                    <span class="badge bg-success fs-6">同意済み</span>
+                    <span class="badge bg-success">同意済み</span>
                     {% else %}
-                    <span class="badge bg-secondary fs-6">未同意</span>
+                    <span class="badge bg-secondary">未同意</span>
                     {% endif %}
                 </div>
                 <div class="mb-3">
                     <strong>配信状況</strong><br>
                     {% if lead.unsubscribed %}
-                    <span class="badge bg-danger fs-6">配信停止中</span>
-                    <small class="d-block text-muted mt-1">
-                        {{ lead.updated_at.strftime('%Y-%m-%d %H:%M') if lead.updated_at else '' }}
-                    </small>
+                    <span class="badge bg-danger">配信停止中</span>
                     {% else %}
-                    <span class="badge bg-success fs-6">配信中</span>
+                    <span class="badge bg-success">配信中</span>
                     {% endif %}
                 </div>
-                <div>
+                <div class="mb-3">
                     <strong>LINEブロック</strong><br>
                     {% if lead.line_blocked %}
-                    <span class="badge bg-danger fs-6">ブロック中</span>
+                    <span class="badge bg-danger">ブロック中</span>
                     {% else %}
-                    <span class="badge bg-success fs-6">-</span>
+                    <span class="badge bg-success">-</span>
                     {% endif %}
                 </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0"><i class="bi bi-chat-dots me-2"></i>LINE連携</h5>
             </div>
@@ -109,9 +127,7 @@
                     <span class="badge bg-secondary">未紐付け</span>
                     {% endif %}
                 </p>
-                <p class="mb-0 small text-muted">
-                    LINE User ID: {{ line_identity.line_user_id[:10] }}...
-                </p>
+                <p class="mb-0 small text-muted">LINE User ID: {{ line_identity.line_user_id[:10] }}...</p>
                 {% else %}
                 <p class="text-muted mb-0">LINE連携なし</p>
                 {% endif %}
@@ -120,13 +136,71 @@
     </div>
 </div>
 
+{% if engagement_events %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-activity me-2"></i>エンゲージメント履歴（直近50件）</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>日時</th>
+                        <th>タイプ</th>
+                        <th>URL</th>
+                        <th>リファラ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ev in engagement_events %}
+                    <tr>
+                        <td>{{ ev.occurred_at.strftime('%m/%d %H:%M') }}</td>
+                        <td>
+                            {% if ev.event_type == 'open' %}
+                            <span class="badge bg-info"><i class="bi bi-envelope-open"></i> 開封</span>
+                            {% elif ev.event_type == 'click' %}
+                            <span class="badge bg-success"><i class="bi bi-cursor"></i> クリック</span>
+                            {% elif ev.event_type == 'page_view' %}
+                            <span class="badge bg-primary"><i class="bi bi-eye"></i> PV</span>
+                            {% elif ev.event_type == 'bounce' %}
+                            <span class="badge bg-danger"><i class="bi bi-x-circle"></i> バウンス</span>
+                            {% elif ev.event_type == 'unsubscribe' %}
+                            <span class="badge bg-secondary"><i class="bi bi-dash-circle"></i> 配信停止</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ ev.event_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ev.url %}
+                            <small class="text-truncate d-inline-block" style="max-width: 300px;" title="{{ ev.url }}">
+                                {{ ev.url[:50] }}{% if ev.url|length > 50 %}...{% endif %}
+                            </small>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ev.referrer %}
+                            <small class="text-muted text-truncate d-inline-block" style="max-width: 200px;">{{ ev.referrer[:30] }}{% if ev.referrer|length > 30 %}...{% endif %}</small>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% if send_logs %}
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="bi bi-envelope me-2"></i>送信履歴</h5>
-        <a href="/ui/send-logs?lead_id={{ lead.id }}" class="btn btn-sm btn-outline-primary">
-            すべて見る
-        </a>
+        <a href="/ui/send-logs?lead_id={{ lead.id }}" class="btn btn-sm btn-outline-primary">すべて見る</a>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -194,9 +268,7 @@
                         </td>
                         <td>
                             {% if log.error_message %}
-                            <small class="text-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ log.error_message }}">
-                                {{ log.error_message[:30] }}{% if log.error_message|length > 30 %}...{% endif %}
-                            </small>
+                            <small class="text-danger">{{ log.error_message[:30] }}{% if log.error_message|length > 30 %}...{% endif %}</small>
                             {% elif log.provider_message_id %}
                             <small class="text-muted">{{ log.provider_message_id[:15] }}...</small>
                             {% else %}
@@ -213,40 +285,27 @@
 {% endif %}
 
 <div class="mt-3 d-flex gap-2">
-    <a href="/ui/leads/{{ lead.id }}/edit" class="btn btn-primary" 
-       data-bs-toggle="tooltip" data-bs-placement="top" title="リード情報を編集">
-        <i class="bi bi-pencil"></i> 編集
-    </a>
+    <a href="/ui/leads/{{ lead.id }}/edit" class="btn btn-primary"><i class="bi bi-pencil"></i> 編集</a>
     {% if lead.unsubscribed %}
     <form method="POST" action="/ui/leads/{{ lead.id }}/resubscribe" class="d-inline">
-        <button type="submit" class="btn btn-success" 
-                onclick="return confirm('配信を再開しますか？')"
-                data-bs-toggle="tooltip" data-bs-placement="top" title="このリードへの配信を再開">
+        <button type="submit" class="btn btn-success" onclick="return confirm('配信を再開しますか？')">
             <i class="bi bi-check-circle"></i> 配信再開
         </button>
     </form>
     {% else %}
     <form method="POST" action="/ui/leads/{{ lead.id }}/unsubscribe" class="d-inline">
-        <button type="submit" class="btn btn-danger" 
-                onclick="return confirm('配信を停止しますか？')"
-                data-bs-toggle="tooltip" data-bs-placement="top" title="このリードへの配信を停止">
+        <button type="submit" class="btn btn-danger" onclick="return confirm('配信を停止しますか？')">
             <i class="bi bi-x-circle"></i> 配信停止
         </button>
     </form>
     {% endif %}
-    <a href="/ui/leads" class="btn btn-outline-secondary"
-       data-bs-toggle="tooltip" data-bs-placement="top" title="リード一覧に戻る">
-        <i class="bi bi-arrow-left"></i> 一覧に戻る
-    </a>
+    <a href="/ui/leads" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> 一覧に戻る</a>
 </div>
 
 <script>
-// Bootstrap tooltipの初期化
 document.addEventListener('DOMContentLoaded', function() {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+    tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el); });
 });
 </script>
 {% endblock %}

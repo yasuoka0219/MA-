@@ -3,13 +3,14 @@ import csv
 import io
 import json
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Request, Depends, Query, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_, and_, func
 from email_validator import validate_email, EmailNotValidError
 
 from src.ma_tool.database import get_db
@@ -17,9 +18,12 @@ from src.ma_tool.models.lead import Lead, GraduationYearSource
 from src.ma_tool.models.line_identity import LineIdentity, LineIdentityStatus
 from src.ma_tool.models.send_log import SendLog, SendStatus
 from src.ma_tool.models.scenario import Scenario
+from src.ma_tool.models.engagement_event import EngagementEvent
 from src.ma_tool.models.user import User
 from src.ma_tool.api.deps import require_session_login
 from src.ma_tool.config import settings
+
+JST = ZoneInfo("Asia/Tokyo")
 
 router = APIRouter(prefix="/ui", tags=["UI Leads"])
 templates = Jinja2Templates(directory="src/ma_tool/templates")
@@ -456,7 +460,6 @@ async def lead_detail(
         .limit(20)
     ).scalars().all()
     
-    # シナリオ情報を取得
     scenario_ids = list(set([log.scenario_id for log in send_logs]))
     scenarios = {}
     if scenario_ids:
@@ -465,7 +468,47 @@ async def lead_detail(
         ).scalars().all()
         for scenario in scenario_list:
             scenarios[scenario.id] = scenario
-    
+
+    now = datetime.now(JST)
+    seven_days_ago = now - timedelta(days=7)
+
+    engagement_events = db.execute(
+        select(EngagementEvent)
+        .where(EngagementEvent.lead_id == lead_id)
+        .order_by(EngagementEvent.occurred_at.desc())
+        .limit(50)
+    ).scalars().all()
+
+    pv_7d = db.execute(
+        select(func.count()).select_from(EngagementEvent)
+        .where(and_(
+            EngagementEvent.lead_id == lead_id,
+            EngagementEvent.event_type == "page_view",
+            EngagementEvent.occurred_at >= seven_days_ago,
+        ))
+    ).scalar() or 0
+
+    click_count = db.execute(
+        select(func.count()).select_from(EngagementEvent)
+        .where(and_(
+            EngagementEvent.lead_id == lead_id,
+            EngagementEvent.event_type == "click",
+        ))
+    ).scalar() or 0
+
+    important_pages = settings.important_page_list
+    important_pv_count = 0
+    if important_pages:
+        for page_url in important_pages:
+            important_pv_count += db.execute(
+                select(func.count()).select_from(EngagementEvent)
+                .where(and_(
+                    EngagementEvent.lead_id == lead_id,
+                    EngagementEvent.event_type.in_(["click", "page_view"]),
+                    EngagementEvent.url.ilike(f"%{page_url}%"),
+                ))
+            ).scalar() or 0
+
     return templates.TemplateResponse("ui_lead_detail.html", {
         **get_base_context(request, user),
         "lead": lead,
@@ -473,6 +516,10 @@ async def lead_detail(
         "send_logs": send_logs,
         "scenarios": scenarios,
         "message": message,
+        "engagement_events": engagement_events,
+        "pv_7d": pv_7d,
+        "click_count": click_count,
+        "important_pv_count": important_pv_count,
     })
 
 

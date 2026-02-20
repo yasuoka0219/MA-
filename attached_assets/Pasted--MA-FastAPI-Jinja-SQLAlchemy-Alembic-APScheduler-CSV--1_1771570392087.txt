@@ -1,0 +1,261 @@
+既存のMAツール（FastAPI + Jinja + SQLAlchemy + Alembic + APScheduler）をベースに、以下の機能を追加してください。既存機能（CSV取り込み、シナリオ配信、イベント管理/参加登録がある場合はそれも）は壊さず、後方互換を保って拡張してください。
+
+⸻
+
+ゴール（FBのTOBE）	•	メール配信後の 開封（参考値）・クリック（重視） を追跡し、学生の温度感を可視化
+	•	HPをよく見ている（回遊・訪問回数・重要ページ閲覧） を、現実的な最小実装で個人単位に紐づけ
+	•	行動に応じて スコアリング し、高温度層を抽出
+	•	Excel依存の進捗管理を減らすため、最低限の ダッシュボード を提供
+
+⸻
+
+データモデル（必須）
+
+1-1. leadsにスコア関連を追加（推奨）
+
+leads に以下を追加：
+	•	engagement_score（int, default 0）
+	•	last_engaged_at（datetime, nullable）
+	•	score_band（string, nullable: cold/warm/hot）
+	•	tracking_id（string, nullable, unique推奨）
+	•	サイト計測のcookieと紐づけるID（例：uuid）
+
+1-2. engagement_events（行動イベントログ）を追加
+	•	id（PK）
+	•	lead_id（FK, nullable）
+	•	send_log_id（FK, nullable）
+	•	scenario_id（nullable）
+	•	event_id（nullable：イベント配信がある場合）
+	•	event_type（string）
+	•	open / click / page_view / session_start / bounce / spamreport / unsubscribe 等
+	•	url（nullable：clickやpage_view）
+	•	referrer（nullable）
+	•	meta_json（nullable：ua/ip等）
+	•	occurred_at（datetime）
+	•	index: (lead_id, occurred_at), (event_type, occurred_at)
+
+1-3. web_sessions（任意だが推奨：サイト回遊を見やすくする）
+
+最小で良いので「訪問」をまとめられるようにする：
+	•	id
+	•	tracking_id
+	•	lead_id（nullable）
+	•	started_at
+	•	last_seen_at
+	•	pageviews（int）
+
+⸻
+
+クリック計測（最優先・精度高い）
+
+2-1. クリック用リダイレクトURL（必須）
+
+メール内リンクを GET /t/c/{token} 経由にしてクリックを記録して302リダイレクト。
+	•	tokenから lead_id, send_log_id, scenario_id, event_id, target_url を復元
+	•	engagement_eventsに click を保存
+	•	スコア加算（後述）
+	•	302で遷移
+
+2-2. tokenは署名付き（改ざん防止）
+	•	HMAC署名でOK
+	•	生のメールアドレスなど個人情報はtokenに入れない
+	•	有効期限（例：90日）を持てると良い（必須ではない）
+
+⸻
+
+開封計測（参考値）
+
+開封率は環境により誤差があるため「参考値」と注記。
+
+3-1. 推奨：SendGrid Event Webhook
+	•	POST /webhooks/sendgrid を追加
+	•	open を engagement_events に保存
+	•	send_logと紐づけるため provider_message_id を send_logs に持たせる（既にあれば流用）
+	•	clickは自前redirectを正とし、SendGrid clickは二重計測しない（無視 or 参考扱い）
+
+⸻
+
+HP回遊（サイト閲覧）を測る “現実的な最小実装”（ここをセットで実装）
+
+「HPをよく見ている」を厳密に全流入で測るのは難しいので、最小で価値が出る設計にする：
+	•	メール経由の訪問者を中心に個人紐づけ
+	•	サイトに軽いタグ（JS）を設置して page_view を送る
+	•	cookie（tracking_id）で継続追跡
+	•	重要ページ閲覧（入試/出願/申込等）に重いスコアを付ける
+
+4-1. tracking_id cookieの発行と紐づけ
+
+4-1-a. リンククリックでtracking_idを渡す（推奨）
+
+/t/c/{token} のリダイレクト先に ?tid=<tracking_id> を付与できるようにする。
+	•	leadが特定できるクリックの場合、lead.tracking_id が無ければ発行して保存（uuid）
+	•	以後、そのtidをサイト側cookieとして保持
+
+4-1-b. 受け口エンドポイント（必須）
+	•	POST /t/pv（page view receiver）
+	•	body: { tid, url, referrer, ts }
+	•	tidから lead_id を解決（leads.tracking_id = tid）
+	•	engagement_eventsに page_view を保存
+	•	web_sessionsを更新（任意）
+	•	スコア加算（後述）
+	•	200を返す
+
+4-2. サイトに埋め込むJSスニペット（出力物として用意）
+
+ツール側で「計測タグ」を生成できるか、少なくともドキュメントとして提示する。
+	•	仕様：
+	•	cookie名：ma_tid
+	•	URLに tid パラメータがあれば cookieに保存
+	•	ページロード時に /t/pv に送信（fetch）
+	•	送信先はあなたのMAツールドメイン（CORS許可が必要）
+
+例のスニペット（概念）：
+	•	tidをURLから取得→cookie保存
+	•	cookieからtidを読み→ /t/pv に url/referrer をPOST
+
+4-3. CORS/セキュリティ
+	•	/t/pv は許可ドメイン（例：bizcraft-studio.com 等）だけCORS許可
+	•	乱用防止に簡易レート制限（IP/分）を入れる（任意）
+	•	個人情報は送らない（tidのみ）
+
+4-4. “よく見ている”の定義（MVP）
+
+ダッシュボードやリード詳細に表示：
+	•	直近7日 page_view数
+	•	直近7日 セッション数（任意）
+	•	重要ページ閲覧回数（urlのパス一致）
+
+⸻
+
+スコアリング（温度感）
+
+5-1. 最小ルール（まず固定でOK）
+	•	open: +1（参考）
+	•	click: +3（重視）
+	•	page_view: +1（回遊）
+	•	重要ページ click: +5（例：/apply, /exam, /entry 等）
+	•	重要ページ page_view: +3（例：入試・出願）
+	•	unsubscribe/bounce/spamreport: 配信停止扱い（スコアではなく除外フラグ優先）
+
+※ 重要ページ判定は “URLに特定パスを含む” でOK。設定は config.py で配列管理できると良い。
+
+5-2. score_band（閾値）
+	•	cold: 0–2
+	•	warm: 3–7
+	•	hot: 8+
+
+スコア更新時に last_engaged_at と band を更新。
+
+⸻
+
+UI（高温度層の抽出）
+
+6-1. 高温度一覧
+	•	/ui/leads/hot
+	•	表示：氏名/メール（マスク可）/スコア/band/最終反応/直近クリックURL/直近PV数（7日）
+	•	フィルタ：
+	•	band（cold/warm/hot）
+	•	graduation_year / grade（存在するもののみ）
+	•	event_type / event_id（イベント機能があれば）
+	•	直近反応が〇日以内
+	•	直近PV数が〇以上（例：7日で5PV以上）
+
+6-2. リード詳細
+	•	/ui/leads/{lead_id}
+	•	表示：
+	•	スコア、band、last_engaged_at
+	•	直近PV数、直近重要ページ閲覧
+	•	engagement_events タイムライン（open/click/page_view）
+
+⸻
+
+UI（ダッシュボード）	•	/ui/dashboard
+	•	期間：7/14/30日
+	•	KPI：
+	•	配信数（send_logs）
+	•	開封数・開封率（参考値）
+	•	クリック数・クリック率（重視）
+	•	page_view総数（期間）
+	•	重要ページ閲覧数TOP（期間）
+	•	hotリード数（現在/期間増分）
+	•	シナリオ別：配信数/クリック率ランキング
+	•	注記：
+	•	開封は参考値（Apple Mail等の影響）を必ず表示
+
+⸻
+
+目標/進捗（最小）
+
+任意だが推奨：
+	•	goals テーブル
+	•	name, period_start/end, target_value, metric_type
+	•	ダッシュボードに「目標カード」（達成率）
+
+metric_type例：
+	•	hot_count
+	•	click_count
+	•	page_view_count
+	•	attended_count（イベントがある場合）
+
+⸻
+
+シナリオ統合（任意）
+
+余力があれば、シナリオ条件に score_band >= warm/hot を追加して分岐できるようにする。
+ただしMVPは「可視化＋抽出」まででもOK。
+
+⸻
+
+セキュリティ/運用（必須）	•	SendGrid webhook：署名 or secret検証（最低限shared secret）
+	•	click token：署名（改ざん防止）
+	•	/t/pv：CORS制限（許可ドメインのみ）
+	•	UIで過度な個人情報表示は避ける（メールマスク）
+	•	不正/大量アクセスへの簡易レート制限（任意）
+
+⸻
+
+マイグレーション（Alembic）	•	leads：engagement_score / last_engaged_at / score_band / tracking_id
+	•	engagement_events：新規
+	•	web_sessions：任意
+	•	send_logs：provider_message_id（必要なら）
+	•	goals：任意
+
+⸻
+
+受け入れ条件（必ず満たす）クリック計測が動く：/t/c クリックで events 記録＋スコア上昇HP回遊が取れる：サイトスニペット→ /t/pv に飛んで page_view が記録され、スコア上昇高温度一覧が見れる：hot/warm/coldの抽出・フィルタができるリード詳細で open/click/page_view の履歴が見れるダッシュボードに配信/開封(参考)/クリック/ページビュー/重要ページ/ hot数が表示される既存シナリオ配信は壊れていないuv run python -m uvicorn ... で起動してUIが表示される計測タグ（JSスニペット）が「出力物」として用意され、どこに貼るか説明がある
+
+⸻
+
+実装対象（目安）	•	models:
+	•	lead.py（スコア+tracking_id）
+	•	engagement_event.py
+	•	web_session.py（任意）
+	•	send_log.py（provider_message_id）
+	•	goal.py（任意）
+	•	endpoints:
+	•	tracking.py（/t/c, /t/pv, /webhooks/sendgrid）
+	•	dashboard.py（UI）
+	•	leads_ui.py（hot一覧/詳細）
+	•	templates:
+	•	ui_dashboard.html
+	•	ui_leads_hot.html
+	•	ui_lead_detail.html
+	•	migrations:
+	•	add_engagement_scoring_site_tracking.py 等
+
+⸻
+
+Replitが回答で出すべきもの	•	追加/変更したファイル一覧
+	•	DB変更点（テーブル/カラム/制約）
+	•	計測タグ（JSスニペット）全文と貼り付け場所の説明
+	•	テスト手順：
+テストリード作成テストメール送信（リンク付）リンククリック→スコア上昇遷移先URLにtidが付く/ cookie保存サイトPV送信→page_view記録→スコア上昇hot一覧/ダッシュボード反映確認
+
+⸻
+
+この仕様で「メール開封/クリック」だけでなく「HP回遊」も加味した温度感MAを実現してください。
+特に “メール経由の識別（tid）→cookie→ページビュー送信” をMVPとして必ず実装してください。
+
+⸻
+
+必要なら、この次に「重要ページの定義」「スコア閾値」「hotになったら自動通知」まで、営業/現場運用に合わせて詰められます。

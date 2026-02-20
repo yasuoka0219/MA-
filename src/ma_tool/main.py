@@ -7,8 +7,8 @@ from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from src.ma_tool.api.endpoints import health, csv_import, unsubscribe, scheduler_api, tracking, templates, views, dashboard, line_webhook
-from src.ma_tool.api.endpoints import ui_auth, ui_leads, ui_line, ui_templates, ui_scenarios, ui_sendlogs, ui_import, ui_dashboard, ui_events, ui_audit_logs, ui_users
+from src.ma_tool.api.endpoints import health, csv_import, unsubscribe, scheduler_api, tracking, sendgrid_webhook, templates, views, dashboard, line_webhook
+from src.ma_tool.api.endpoints import ui_auth, ui_leads, ui_leads_hot, ui_line, ui_templates, ui_scenarios, ui_sendlogs, ui_import, ui_dashboard, ui_events, ui_audit_logs, ui_users
 from src.ma_tool.config import settings
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ app.include_router(csv_import.router, tags=["Import"])
 app.include_router(unsubscribe.router, tags=["Unsubscribe"])
 app.include_router(scheduler_api.router, tags=["Scheduler"])
 app.include_router(tracking.router, tags=["Tracking"])
+app.include_router(sendgrid_webhook.router, tags=["Webhooks"])
 app.include_router(templates.router, tags=["Templates"])
 app.include_router(views.router)
 app.include_router(dashboard.router)
@@ -81,6 +82,7 @@ app.include_router(line_webhook.router)
 
 app.include_router(ui_auth.router)
 app.include_router(ui_dashboard.router)
+app.include_router(ui_leads_hot.router)
 app.include_router(ui_leads.router)
 app.include_router(ui_line.router)
 app.include_router(ui_templates.router)

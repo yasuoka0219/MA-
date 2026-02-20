@@ -84,6 +84,69 @@
     </div>
 </div>
 
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card card-stat card-stat-danger shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">🔥 Hotリード</h6>
+                        <h3 class="mb-0">{{ hot_leads_count }}</h3>
+                        <small class="text-warning">Warm: {{ warm_leads_count }}件</small>
+                    </div>
+                    <div class="text-danger opacity-50">
+                        <i class="bi bi-fire fs-1"></i>
+                    </div>
+                </div>
+                <a href="/ui/leads/hot?band=hot" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-stat card-stat-primary shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="text-muted mb-1">エンゲージメント（7日）</h6>
+                        <h3 class="mb-0">{{ events_7d }}</h3>
+                        <small class="text-muted">開封+クリック+PV</small>
+                    </div>
+                    <div class="text-primary opacity-50">
+                        <i class="bi bi-activity fs-1"></i>
+                    </div>
+                </div>
+                <a href="/ui/leads/hot" class="stretched-link"></a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        {% if top_hot_leads %}
+        <div class="card shadow-sm">
+            <div class="card-header py-2">
+                <small><i class="bi bi-fire"></i> Top Hotリード</small>
+            </div>
+            <div class="card-body py-2 px-3">
+                {% for lead in top_hot_leads %}
+                <div class="d-flex justify-content-between align-items-center {% if not loop.last %}border-bottom pb-1 mb-1{% endif %}">
+                    <a href="/ui/leads/{{ lead.id }}" class="text-decoration-none">
+                        <small>{{ lead.name or lead.email[:15] }}</small>
+                    </a>
+                    <span class="badge bg-danger">{{ lead.engagement_score }}pt</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="card shadow-sm">
+            <div class="card-body text-center text-muted">
+                <i class="bi bi-fire fs-3 d-block mb-1"></i>
+                <small>Hotリードはまだありません</small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 <div class="row g-4">
     <div class="col-md-8">
         <div class="card shadow-sm">

@@ -32,6 +32,10 @@ class Lead(Base):
     consent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     unsubscribed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     line_blocked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    engagement_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_engaged_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    score_band: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, index=True)
+    tracking_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

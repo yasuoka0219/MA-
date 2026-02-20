@@ -33,6 +33,30 @@ class Settings(BaseSettings):
     
     SESSION_SECRET_KEY: str = ""
     
+    IMPORTANT_PAGE_PATHS: str = "/apply,/exam,/entry,/admission,/nyushi,/shutsugan,/opencampus"
+    TRACKING_ALLOWED_ORIGINS: str = ""
+    
+    SCORE_OPEN: int = 1
+    SCORE_CLICK: int = 3
+    SCORE_PAGE_VIEW: int = 1
+    SCORE_IMPORTANT_CLICK: int = 5
+    SCORE_IMPORTANT_PAGE_VIEW: int = 3
+    
+    SCORE_BAND_WARM: int = 3
+    SCORE_BAND_HOT: int = 8
+    
+    @property
+    def important_page_list(self) -> List[str]:
+        if not self.IMPORTANT_PAGE_PATHS:
+            return []
+        return [p.strip() for p in self.IMPORTANT_PAGE_PATHS.split(",") if p.strip()]
+    
+    @property
+    def tracking_allowed_origins_list(self) -> List[str]:
+        if not self.TRACKING_ALLOWED_ORIGINS:
+            return []
+        return [o.strip() for o in self.TRACKING_ALLOWED_ORIGINS.split(",") if o.strip()]
+    
     @field_validator("APP_ENV")
     @classmethod
     def validate_app_env(cls, v: str) -> str:
