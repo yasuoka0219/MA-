@@ -17,6 +17,8 @@ The MA tool is built upon a modern web stack using FastAPI for the API, PostgreS
   - **Template Management:** Create, edit, clone templates with LINE support (Flex Message JSON), submit for approval, approve/reject workflows, and test send functionality (dev/staging only) at `/ui/templates`.
   - **Scenario Management:** Create and manage scenarios with target preview showing eligible leads count at `/ui/scenarios`. Supports both lead-creation-based and event-date-based scheduling.
   - **Event Management:** Create and manage calendar events (Open Campus, briefings, etc.) with participant registration at `/ui/events`. Events can be linked to scenarios for event-date-based email scheduling (e.g., send reminder 7 days before event).
+  - **Hot Leads Dashboard:** View and filter high-engagement leads by score band (Hot/Warm/Cold), graduation year, recency, and PV count at `/ui/leads/hot`. Shows engagement score, last click URL, and 7-day page view count.
+  - **Lead Detail Engagement:** Enhanced lead detail page with engagement score card (band, score, last engagement, 7-day PV, click count, important PV count) and engagement timeline (last 50 events with type/URL/referrer).
   - **Send Logs:** View all message delivery logs with multi-filter support (status, channel, scenario, graduation year) at `/ui/send-logs`.
   - **Environment Banner:** Shows current environment (DEV/STAGING/PRODUCTION) for safety awareness.
   - **Toast Notifications:** Real-time feedback via HTMX triggers.
