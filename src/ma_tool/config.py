@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     SCORE_BAND_WARM: int = 3
     SCORE_BAND_HOT: int = 8
     
+    # CSVインポート: アップロード許容サイズ（MB）。本番で 413 やタイムアウトが出る場合は小さくする
+    CSV_MAX_UPLOAD_MB: int = 50
+    
     @property
     def important_page_list(self) -> List[str]:
         if not self.IMPORTANT_PAGE_PATHS:

@@ -38,6 +38,70 @@ def get_base_context(request: Request, user: User):
     }
 
 
+def get_lead_engagement_statuses(db: Session, lead_ids: list[int]) -> dict[int, str]:
+    """
+    リードIDのリストに対して、エンゲージメントステータスを一括取得する。
+    返す値: "important_page" | "click" | "page_view" | "open" | "none"
+    """
+    if not lead_ids:
+        return {}
+
+    result = {lid: "none" for lid in lead_ids}
+    important_paths = getattr(settings, "important_page_list", []) or []
+
+    # 重要ページPVあり: event_type=page_view かつ url が重要パスを含む
+    if important_paths:
+        path_conds = or_(*[EngagementEvent.url.ilike(f"%{p.strip()}%") for p in important_paths if p.strip()])
+        q = select(EngagementEvent.lead_id).where(
+            and_(
+                EngagementEvent.lead_id.in_(lead_ids),
+                EngagementEvent.lead_id.isnot(None),
+                EngagementEvent.event_type == "page_view",
+                path_conds,
+            )
+        ).distinct()
+        for (lead_id,) in db.execute(q).all():
+            if lead_id and result.get(lead_id) == "none":
+                result[lead_id] = "important_page"
+
+    # クリックあり
+    q = select(EngagementEvent.lead_id).where(
+        and_(
+            EngagementEvent.lead_id.in_(lead_ids),
+            EngagementEvent.lead_id.isnot(None),
+            EngagementEvent.event_type == "click",
+        )
+    ).distinct()
+    for (lead_id,) in db.execute(q).all():
+        if lead_id and result.get(lead_id) == "none":
+            result[lead_id] = "click"
+
+    # サイト訪問あり（PV）
+    q = select(EngagementEvent.lead_id).where(
+        and_(
+            EngagementEvent.lead_id.in_(lead_ids),
+            EngagementEvent.lead_id.isnot(None),
+            EngagementEvent.event_type == "page_view",
+        )
+    ).distinct()
+    for (lead_id,) in db.execute(q).all():
+        if lead_id and result.get(lead_id) == "none":
+            result[lead_id] = "page_view"
+
+    # 開封済み（SendLog.opened_at が入っている送信が1件以上）
+    q = select(SendLog.lead_id).where(
+        and_(
+            SendLog.lead_id.in_(lead_ids),
+            SendLog.opened_at.isnot(None),
+        )
+    ).distinct()
+    for (lead_id,) in db.execute(q).all():
+        if lead_id and result.get(lead_id) == "none":
+            result[lead_id] = "open"
+
+    return result
+
+
 def build_lead_query(
     db: Session,
     search: Optional[str] = None,
@@ -91,14 +155,16 @@ async def leads_list(
     
     leads = db.execute(query.offset(offset).limit(per_page)).scalars().all()
     
-    line_identities = {}
     lead_ids = [l.id for l in leads]
+    line_identities = {}
     if lead_ids:
         identities = db.execute(
             select(LineIdentity).where(LineIdentity.lead_id.in_(lead_ids))
         ).scalars().all()
         for identity in identities:
             line_identities[identity.lead_id] = identity
+
+    lead_statuses = get_lead_engagement_statuses(db, lead_ids)
     
     graduation_years = db.execute(
         select(Lead.graduation_year).distinct().where(Lead.graduation_year.isnot(None)).order_by(Lead.graduation_year.desc())
@@ -112,6 +178,7 @@ async def leads_list(
         **get_base_context(request, user),
         "leads": leads,
         "line_identities": line_identities,
+        "lead_statuses": lead_statuses,
         "search": search or "",
         "graduation_year": graduation_year,
         "interest": interest or "",

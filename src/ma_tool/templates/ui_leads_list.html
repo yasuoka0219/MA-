@@ -103,6 +103,7 @@
                     <th>名前</th>
                     <th>学校名</th>
                     <th>卒業年</th>
+                    <th>ステータス</th>
                     <th>同意</th>
                     <th>配信停止</th>
                     <th>LINE</th>
@@ -119,6 +120,20 @@
                     <td>{{ lead.name or '-' }}</td>
                     <td>{{ lead.school_name or '-' }}</td>
                     <td>{{ lead.graduation_year or '-' }}</td>
+                    <td>
+                        {% set status = lead_statuses.get(lead.id, 'none') %}
+                        {% if status == 'important_page' %}
+                        <span class="badge bg-danger" title="重要ページ（入試・出願等）を訪問">重要ページ訪問</span>
+                        {% elif status == 'click' %}
+                        <span class="badge bg-primary" title="メール内リンクをクリック">クリック済み</span>
+                        {% elif status == 'page_view' %}
+                        <span class="badge bg-info" title="サイトを訪問">サイト訪問あり</span>
+                        {% elif status == 'open' %}
+                        <span class="badge bg-secondary" title="メールを開封">開封済み</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark" title="開封・クリック・PVなし">未反応</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if lead.consent %}
                         <span class="badge bg-success">同意済</span>

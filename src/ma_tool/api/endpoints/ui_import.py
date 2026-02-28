@@ -57,9 +57,29 @@ async def import_preview(
     user, redirect = require_login(request, db)
     if redirect:
         return redirect
-    
-    content_bytes = await file.read()
-    
+
+    max_bytes = settings.CSV_MAX_UPLOAD_MB * 1024 * 1024
+
+    try:
+        content_bytes = await file.read()
+    except Exception as e:
+        return templates.TemplateResponse("ui_import.html", {
+            **get_base_context(request, user),
+            "step": "upload",
+            "error": "ファイルの読み込みに失敗しました。ネットワークを確認するか、ファイルを小さくして再試行してください。",
+            "preview": None,
+            "result": None,
+        })
+
+    if len(content_bytes) > max_bytes:
+        return templates.TemplateResponse("ui_import.html", {
+            **get_base_context(request, user),
+            "step": "upload",
+            "error": f"ファイルが大きすぎます（上限: {settings.CSV_MAX_UPLOAD_MB}MB）。分割するか、件数を減らして再度アップロードしてください。",
+            "preview": None,
+            "result": None,
+        })
+
     try:
         content = content_bytes.decode('utf-8')
     except UnicodeDecodeError:
@@ -73,7 +93,7 @@ async def import_preview(
                 "preview": None,
                 "result": None,
             })
-    
+
     try:
         preview = dry_run_import(content)
     except Exception as e:
@@ -84,7 +104,7 @@ async def import_preview(
             "preview": None,
             "result": None,
         })
-    
+
     return templates.TemplateResponse("ui_import.html", {
         **get_base_context(request, user),
         "step": "preview",
