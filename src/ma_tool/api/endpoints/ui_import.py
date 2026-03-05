@@ -13,7 +13,7 @@ from src.ma_tool.database import get_db
 from src.ma_tool.models.user import User
 from src.ma_tool.config import settings
 from src.ma_tool.api.endpoints.ui_auth import get_base_context
-from src.ma_tool.services.csv_import import dry_run_import, execute_import
+from src.ma_tool.services.csv_import import dry_run_import, execute_import, import_csv
 from src.ma_tool.services.audit import log_action
 
 router = APIRouter(prefix="/ui", tags=["UI Import"])
@@ -112,6 +112,92 @@ async def import_preview(
         "result": None,
         "session_id": preview.session_id,
     })
+
+
+@router.post("/import/direct", response_class=HTMLResponse)
+async def import_direct(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    プレビューを経由せずにそのままCSVインポートを実行するエンドポイント。
+    成功・失敗はリード一覧のメッセージで知らせる。
+    """
+    user, redirect = require_login(request, db)
+    if redirect:
+        return redirect
+
+    max_bytes = settings.CSV_MAX_UPLOAD_MB * 1024 * 1024
+
+    try:
+        content_bytes = await file.read()
+    except Exception:
+        return templates.TemplateResponse("ui_import.html", {
+            **get_base_context(request, user),
+            "step": "upload",
+            "error": "ファイルの読み込みに失敗しました。ネットワークを確認するか、ファイルを小さくして再試行してください。",
+            "preview": None,
+            "result": None,
+        })
+
+    if len(content_bytes) > max_bytes:
+        return templates.TemplateResponse("ui_import.html", {
+            **get_base_context(request, user),
+            "step": "upload",
+            "error": f"ファイルが大きすぎます（上限: {settings.CSV_MAX_UPLOAD_MB}MB）。分割するか、件数を減らして再度アップロードしてください。",
+            "preview": None,
+            "result": None,
+        })
+
+    try:
+        content = content_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            content = content_bytes.decode("cp932")
+        except UnicodeDecodeError:
+            return templates.TemplateResponse("ui_import.html", {
+                **get_base_context(request, user),
+                "step": "upload",
+                "error": "ファイルの文字コードを認識できませんでした（UTF-8またはShift_JIS/cp932をサポートしています）",
+                "preview": None,
+                "result": None,
+            })
+
+    try:
+        result = import_csv(db=db, csv_content=content, actor=user)
+    except Exception as e:
+        return templates.TemplateResponse("ui_import.html", {
+            **get_base_context(request, user),
+            "step": "upload",
+            "error": f"インポート中にエラーが発生しました: {str(e)}",
+            "preview": None,
+            "result": None,
+        })
+
+    error_count = len(result.errors)
+    log_action(
+        db=db,
+        actor=user,
+        action="import_csv_direct",
+        target_type="lead",
+        target_id=None,
+        meta={
+            "added": result.added,
+            "updated": result.updated,
+            "errors": error_count,
+        },
+    )
+
+    # 結果はリード一覧のメッセージで表示
+    message = f"CSVインポート完了: 追加 {result.added}件、更新 {result.updated}件"
+    if error_count:
+        message += f"、エラー {error_count}件（エラー行はスキップされました）"
+
+    return RedirectResponse(
+        url=f"/ui/leads?message={message}",
+        status_code=302,
+    )
 
 
 @router.post("/import/confirm", response_class=HTMLResponse)

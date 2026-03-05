@@ -54,10 +54,14 @@
             </div>
             
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary" id="submit-btn">
+                <button type="submit" class="btn btn-primary" id="submit-btn" formaction="/ui/import/preview">
                     <span class="spinner-border spinner-border-sm d-none me-2" id="loading-spinner"></span>
                     <i class="bi bi-eye" id="preview-icon"></i>
                     プレビュー
+                </button>
+                <button type="submit" class="btn btn-success" formaction="/ui/import/direct">
+                    <i class="bi bi-check-circle"></i>
+                    プレビューせずにインポート
                 </button>
             </div>
         </form>
