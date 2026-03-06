@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import From, Mail
 
 from src.ma_tool.config import settings
 
@@ -34,14 +34,23 @@ class EmailProvider(ABC):
 
 
 class SendGridProvider(EmailProvider):
-    def __init__(self, api_key: str, default_from: str):
+    def __init__(self, api_key: str, default_from_email: str, default_from_name: Optional[str] = None):
         self.api_key = api_key
-        self.default_from = default_from
-    
+        self.default_from_email = default_from_email
+        self.default_from_name = (default_from_name or "").strip() or None
+
+    def _build_from_email(self, email: str):
+        """差出人を SendGrid の From 形式で返す（表示名がある場合は From オブジェクトを使用）"""
+        if self.default_from_name:
+            return From(email, self.default_from_name)
+        return email
+
     def send(self, message: EmailMessage) -> EmailResult:
         try:
+            effective_from = message.from_email or self.default_from_email
+            from_email = self._build_from_email(effective_from)
             mail = Mail(
-                from_email=message.from_email or self.default_from,
+                from_email=from_email,
                 to_emails=message.to_email,
                 subject=message.subject,
                 html_content=message.html_content
@@ -153,7 +162,8 @@ def get_email_service() -> EmailService:
     if settings.SENDGRID_API_KEY:
         provider = SendGridProvider(
             api_key=settings.SENDGRID_API_KEY,
-            default_from=settings.MAIL_FROM
+            default_from_email=settings.MAIL_FROM,
+            default_from_name=settings.MAIL_FROM_NAME.strip() or None,
         )
     else:
         provider = MockEmailProvider()

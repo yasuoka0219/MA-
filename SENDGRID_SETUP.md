@@ -40,6 +40,7 @@
 |--------|-----|------|
 | `SENDGRID_API_KEY` | 手順1でコピーした API キー | ✅ |
 | `MAIL_FROM` | 送信元メールアドレス（認証済みドメイン）<br>例: `noreply@yourdomain.com` | ✅ |
+| `MAIL_FROM_NAME` | 差出人表示名（任意）<br>例: `Biz Craft MA-tool`。未設定の場合はメールアドレスのみ表示 | 任意 |
 | `MAIL_REPLY_TO` | 返信先アドレス（任意）<br>例: `support@yourdomain.com` | 任意 |
 
 5. **保存** する（Variables は保存後、次回リクエストから反映されます）

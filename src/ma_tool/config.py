@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "dev"
     
     MAIL_FROM: str = "noreply@example.com"
+    MAIL_FROM_NAME: str = ""  # 差出人表示名（例: Biz Craft MA-tool）。未設定の場合はメールアドレスのみ表示
     MAIL_REPLY_TO: str = ""
     MAIL_REDIRECT_TO: str = ""
     MAIL_ALLOWLIST: str = ""
