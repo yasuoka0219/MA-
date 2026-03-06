@@ -79,8 +79,8 @@ async def audit_logs_list(
     start_item = offset + 1 if total_count > 0 else 0
     end_item = min(offset + per_page, total_count)
     
-    # ユーザー情報を取得
-    user_ids = list(set([log.actor_user_id for log in logs]))
+    # ユーザー情報を取得（actor_user_id が None の場合はシステム実行）
+    user_ids = list(set([log.actor_user_id for log in logs if log.actor_user_id is not None]))
     users_map = {}
     if user_ids:
         user_records = db.execute(select(User).where(User.id.in_(user_ids))).scalars().all()

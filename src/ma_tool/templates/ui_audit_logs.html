@@ -76,7 +76,11 @@
                         {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '-' }}
                     </td>
                     <td>
-                        {% if log.actor_user_id in users %}
+                        {% if log.actor_user_id is none %}
+                        <span class="text-muted">システム</span>
+                        <br>
+                        <span class="badge bg-secondary">{{ log.actor_role_snapshot }}</span>
+                        {% elif log.actor_user_id in users %}
                         <div>
                             <strong>{{ users[log.actor_user_id].name }}</strong>
                             <br>

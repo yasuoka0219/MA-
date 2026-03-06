@@ -11,7 +11,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    actor_user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    actor_user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # None = システム実行
     actor_role_snapshot: Mapped[str] = mapped_column(String(50), nullable=False)
     action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     target_type: Mapped[str] = mapped_column(String(50), nullable=False)

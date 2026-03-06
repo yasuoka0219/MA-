@@ -231,8 +231,12 @@ async def import_confirm(
     
     error_count = len(result.errors)
     log_action(
-        db, user, "import_csv", "leads", None,
-        {"added": result.added, "updated": result.updated, "errors": error_count}
+        db,
+        action="import_csv",
+        target_type="leads",
+        target_id=None,
+        meta={"added": result.added, "updated": result.updated, "errors": error_count},
+        actor=user,
     )
     
     response = templates.TemplateResponse("ui_import.html", {
