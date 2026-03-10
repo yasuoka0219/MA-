@@ -29,29 +29,52 @@
     </div>
 </div>
 
+{% if can_edit %}
 <div id="bulk-actions" class="card mb-3" style="display: none;">
     <div class="card-body">
-        <div class="d-flex align-items-center gap-3">
-            <span class="text-muted">
-                <span id="selected-count">0</span>件を選択中
-            </span>
-            <div class="btn-group">
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="bulkAction('delete')" id="bulk-delete-btn" disabled>
-                    <i class="bi bi-trash"></i> 削除
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-warning" onclick="bulkAction('unsubscribe')" id="bulk-unsubscribe-btn" disabled>
-                    <i class="bi bi-pause-circle"></i> 配信停止
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-success" onclick="bulkAction('resubscribe')" id="bulk-resubscribe-btn" disabled>
-                    <i class="bi bi-play-circle"></i> 配信再開
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-muted">
+                    <span id="selected-count">0</span>件を選択中
+                </span>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="bulkAction('delete')" id="bulk-delete-btn" disabled>
+                        <i class="bi bi-trash"></i> 削除
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="bulkAction('unsubscribe')" id="bulk-unsubscribe-btn" disabled>
+                        <i class="bi bi-pause-circle"></i> 配信停止
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="bulkAction('resubscribe')" id="bulk-resubscribe-btn" disabled>
+                        <i class="bi bi-play-circle"></i> 配信再開
+                    </button>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                    <i class="bi bi-x"></i> 選択解除
                 </button>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
-                <i class="bi bi-x"></i> 選択解除
-            </button>
+            <div class="d-flex align-items-center gap-2 ms-auto">
+                {% if approved_templates %}
+                <select id="bulk-email-template" class="form-select form-select-sm" style="min-width: 220px;" onchange="updateBulkActions()">
+                    <option value="">テンプレートを選択</option>
+                    {% for tmpl in approved_templates %}
+                    <option value="{{ tmpl.id }}" data-name="{{ (tmpl.name or '')|e }}" data-subject="{{ (tmpl.subject or '')[:80]|e }}">
+                        {{ tmpl.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn btn-sm btn-primary" onclick="bulkEmail()" id="bulk-email-btn" disabled>
+                    <i class="bi bi-envelope"></i> 選択したリードにメール送信
+                </button>
+                {% else %}
+                <small class="text-muted">
+                    承認済みのメールテンプレートがありません（テンプレートから作成・承認してください）
+                </small>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
+{% endif %}
 
 <div class="card mb-4">
     <div class="card-body">
@@ -260,16 +283,28 @@ function updateBulkActions() {
     
     if (selectedCount) selectedCount.textContent = count;
     
-    if (count > 0) {
-        bulkActions.style.display = 'block';
-        document.getElementById('bulk-delete-btn').disabled = false;
-        document.getElementById('bulk-unsubscribe-btn').disabled = false;
-        document.getElementById('bulk-resubscribe-btn').disabled = false;
-    } else {
-        bulkActions.style.display = 'none';
-        document.getElementById('bulk-delete-btn').disabled = true;
-        document.getElementById('bulk-unsubscribe-btn').disabled = true;
-        document.getElementById('bulk-resubscribe-btn').disabled = true;
+    if (bulkActions) {
+        if (count > 0) {
+            bulkActions.style.display = 'block';
+        } else {
+            bulkActions.style.display = 'none';
+        }
+
+        const deleteBtn = document.getElementById('bulk-delete-btn');
+        const unsubscribeBtn = document.getElementById('bulk-unsubscribe-btn');
+        const resubscribeBtn = document.getElementById('bulk-resubscribe-btn');
+        const emailBtn = document.getElementById('bulk-email-btn');
+        const templateSelect = document.getElementById('bulk-email-template');
+
+        const hasSelection = count > 0;
+        if (deleteBtn) deleteBtn.disabled = !hasSelection;
+        if (unsubscribeBtn) unsubscribeBtn.disabled = !hasSelection;
+        if (resubscribeBtn) resubscribeBtn.disabled = !hasSelection;
+
+        if (emailBtn) {
+            const hasTemplate = templateSelect && templateSelect.value;
+            emailBtn.disabled = !(hasSelection && hasTemplate);
+        }
     }
     
     // 全選択チェックボックスの状態を更新
@@ -320,6 +355,57 @@ function bulkAction(action) {
     actionInput.name = 'action';
     actionInput.value = action;
     form.appendChild(actionInput);
+    
+    const idsInput = document.createElement('input');
+    idsInput.type = 'hidden';
+    idsInput.name = 'lead_ids';
+    idsInput.value = ids.join(',');
+    form.appendChild(idsInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function bulkEmail() {
+    const checkboxes = document.querySelectorAll('.lead-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (ids.length === 0) {
+        alert('リードを選択してください');
+        return;
+    }
+    
+    const templateSelect = document.getElementById('bulk-email-template');
+    if (!templateSelect || !templateSelect.value) {
+        alert('テンプレートを選択してください');
+        return;
+    }
+    
+    const selectedOpt = templateSelect.selectedOptions[0];
+    const templateName = selectedOpt.getAttribute('data-name') || '(テンプレート名)';
+    let subjectPreview = selectedOpt.getAttribute('data-subject') || '(件名なし)';
+    if (subjectPreview.length > 50) {
+        subjectPreview = subjectPreview.substring(0, 50) + '...';
+    }
+    
+    const msg = '以下の内容でメールを送信します。\\n\\n' +
+        '送信先: ' + ids.length + '件\\n' +
+        'テンプレート: ' + templateName + '\\n' +
+        '件名: ' + subjectPreview + '\\n\\n' +
+        'よろしいですか？';
+    if (!confirm(msg)) {
+        return;
+    }
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/ui/leads/bulk-email';
+    
+    const templateInput = document.createElement('input');
+    templateInput.type = 'hidden';
+    templateInput.name = 'template_id';
+    templateInput.value = templateSelect.value;
+    form.appendChild(templateInput);
     
     const idsInput = document.createElement('input');
     idsInput.type = 'hidden';

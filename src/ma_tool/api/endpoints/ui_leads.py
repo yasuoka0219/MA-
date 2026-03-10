@@ -19,14 +19,22 @@ from src.ma_tool.models.line_identity import LineIdentity, LineIdentityStatus
 from src.ma_tool.models.send_log import SendLog, SendStatus
 from src.ma_tool.models.scenario import Scenario
 from src.ma_tool.models.engagement_event import EngagementEvent
-from src.ma_tool.models.user import User
+from src.ma_tool.models.user import User, UserRole
+from src.ma_tool.models.template import Template, TemplateStatus, ChannelType
 from src.ma_tool.api.deps import require_session_login
 from src.ma_tool.config import settings
+from src.ma_tool.services.template_renderer import render_email_body, render_subject
+from src.ma_tool.services.email import send_email
+from src.ma_tool.services.audit import log_action
 
 JST = ZoneInfo("Asia/Tokyo")
 
 router = APIRouter(prefix="/ui", tags=["UI Leads"])
 templates = Jinja2Templates(directory="src/ma_tool/templates")
+
+
+def can_edit(user: User) -> bool:
+    return user.role in [UserRole.ADMIN, UserRole.EDITOR]
 
 
 def get_base_context(request: Request, user: User):
@@ -165,6 +173,13 @@ async def leads_list(
             line_identities[identity.lead_id] = identity
 
     lead_statuses = get_lead_engagement_statuses(db, lead_ids)
+
+    approved_templates = db.execute(
+        select(Template).where(
+            Template.channel_type == ChannelType.EMAIL,
+            Template.status == TemplateStatus.APPROVED,
+        )
+    ).scalars().all()
     
     graduation_years = db.execute(
         select(Lead.graduation_year).distinct().where(Lead.graduation_year.isnot(None)).order_by(Lead.graduation_year.desc())
@@ -192,6 +207,8 @@ async def leads_list(
         "graduation_years": graduation_years,
         "message": message,
         "error": error,
+        "approved_templates": approved_templates,
+        "can_edit": can_edit(user),
     })
 
 
@@ -576,6 +593,13 @@ async def lead_detail(
                 ))
             ).scalar() or 0
 
+    approved_templates = db.execute(
+        select(Template).where(
+            Template.channel_type == ChannelType.EMAIL,
+            Template.status == TemplateStatus.APPROVED,
+        )
+    ).scalars().all()
+
     return templates.TemplateResponse("ui_lead_detail.html", {
         **get_base_context(request, user),
         "lead": lead,
@@ -587,6 +611,8 @@ async def lead_detail(
         "pv_7d": pv_7d,
         "click_count": click_count,
         "important_pv_count": important_pv_count,
+        "approved_templates": approved_templates,
+        "can_edit": can_edit(user),
     })
 
 
@@ -653,6 +679,101 @@ async def lead_resubscribe(
     response.headers["HX-Trigger"] = json.dumps({"showToast": {"message": "配信を再開しました", "type": "success"}})
     return response
 
+
+@router.post("/leads/{lead_id}/send-email")
+async def lead_send_email(
+    request: Request,
+    lead_id: int,
+    template_id: int = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_session_login),
+):
+    """リード詳細からこの1人にだけメールを送信（admin/editorのみ）"""
+    if not can_edit(user):
+        response = RedirectResponse(url=f"/ui/leads/{lead_id}?error=メール送信の権限がありません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "メール送信の権限がありません", "type": "error"}}
+        )
+        return response
+
+    lead = db.execute(select(Lead).where(Lead.id == lead_id)).scalar_one_or_none()
+    if not lead:
+        return HTMLResponse("<h1>リードが見つかりません</h1>", status_code=404)
+
+    # 配信許諾と配信停止、メールアドレスの有無を確認
+    if not lead.email:
+        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error=メールアドレスが登録されていません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "メールアドレスが登録されていません", "type": "error"}}
+        )
+        return response
+
+    if not lead.consent or lead.unsubscribed:
+        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error=配信停止中または同意がありません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "配信停止中または同意がありません", "type": "error"}}
+        )
+        return response
+
+    template = db.get(Template, template_id)
+    if not template:
+        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error=テンプレートが見つかりません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "テンプレートが見つかりません", "type": "error"}}
+        )
+        return response
+
+    if template.status != TemplateStatus.APPROVED or template.channel_type != ChannelType.EMAIL:
+        response = RedirectResponse(
+            url=f"/ui/leads/{lead.id}?error=承認済みのメールテンプレートのみ送信できます",
+            status_code=302,
+        )
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "承認済みのメールテンプレートのみ送信できます", "type": "error"}}
+        )
+        return response
+
+    sent = False
+    try:
+        body = render_email_body(template.body_html or "", lead)
+        subject = render_subject(template.subject or "", lead)
+        result = send_email(
+            to_email=lead.email,
+            subject=subject or "",
+            html_content=body,
+        )
+        sent = result.success
+    except Exception:
+        sent = False
+
+    meta = {
+        "template_id": template.id,
+        "lead_id": lead.id,
+        "sent": sent,
+        "source": "lead_detail",
+    }
+    log_action(
+        db=db,
+        actor=user,
+        action="LEAD_SINGLE_EMAIL",
+        target_type="lead",
+        target_id=lead.id,
+        meta=meta,
+    )
+
+    if sent:
+        message = "1件のメールを送信しました"
+        response = RedirectResponse(url=f"/ui/leads/{lead.id}?message={message}", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": message, "type": "success"}}
+        )
+    else:
+        message = "メールの送信に失敗しました"
+        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error={message}", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": message, "type": "error"}}
+        )
+    return response
 
 @router.post("/leads/bulk-action")
 async def leads_bulk_action(
@@ -757,4 +878,120 @@ async def leads_bulk_action(
     
     response = RedirectResponse(url=f"/ui/leads?message={message}", status_code=302)
     response.headers["HX-Trigger"] = json.dumps({"showToast": {"message": message, "type": "success"}})
+    return response
+
+
+@router.post("/leads/bulk-email")
+async def leads_bulk_email(
+    request: Request,
+    template_id: int = Form(...),
+    lead_ids: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_session_login),
+):
+    """リード一覧からの一括メール送信（admin/editorのみ）"""
+    if not can_edit(user):
+        response = RedirectResponse(url="/ui/leads?error=メール送信の権限がありません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "メール送信の権限がありません", "type": "error"}}
+        )
+        return response
+
+    lead_ids = (lead_ids or "").strip()
+    if not lead_ids:
+        response = RedirectResponse(url="/ui/leads?error=送信対象が選択されていません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "送信対象が選択されていません", "type": "error"}}
+        )
+        return response
+
+    try:
+        ids = [int(id_str.strip()) for id_str in lead_ids.split(",") if id_str.strip()]
+    except ValueError:
+        response = RedirectResponse(url="/ui/leads?error=送信対象のIDが不正です", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "送信対象のIDが不正です", "type": "error"}}
+        )
+        return response
+
+    if not ids:
+        response = RedirectResponse(url="/ui/leads?error=送信対象が選択されていません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "送信対象が選択されていません", "type": "error"}}
+        )
+        return response
+
+    template = db.get(Template, template_id)
+    if not template:
+        response = RedirectResponse(url="/ui/leads?error=テンプレートが見つかりません", status_code=302)
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "テンプレートが見つかりません", "type": "error"}}
+        )
+        return response
+
+    if template.status != TemplateStatus.APPROVED or template.channel_type != ChannelType.EMAIL:
+        response = RedirectResponse(
+            url="/ui/leads?error=承認済みのメールテンプレートのみ送信できます", status_code=302
+        )
+        response.headers["HX-Trigger"] = json.dumps(
+            {"showToast": {"message": "承認済みのメールテンプレートのみ送信できます", "type": "error"}}
+        )
+        return response
+
+    leads = db.execute(select(Lead).where(Lead.id.in_(ids))).scalars().all()
+    leads_map = {l.id: l for l in leads}
+
+    sent_count = 0
+    skipped_count = 0
+
+    for lead_id in ids:
+        lead = leads_map.get(lead_id)
+        if not lead:
+            skipped_count += 1
+            continue
+
+        # 配信許諾と配信停止、メールアドレスの有無を確認
+        if not lead.consent or lead.unsubscribed or not lead.email:
+            skipped_count += 1
+            continue
+
+        try:
+            body = render_email_body(template.body_html or "", lead)
+            subject = render_subject(template.subject or "", lead)
+            result = send_email(
+                to_email=lead.email,
+                subject=subject or "",
+                html_content=body,
+            )
+            if result.success:
+                sent_count += 1
+            else:
+                skipped_count += 1
+        except Exception:
+            skipped_count += 1
+
+    # 監査ログに記録
+    meta = {
+        "template_id": template.id,
+        "lead_ids": ids,
+        "sent_count": sent_count,
+        "skipped_count": skipped_count,
+        "source": "leads_list",
+    }
+    log_action(
+        db=db,
+        actor=user,
+        action="LEAD_BULK_EMAIL",
+        target_type="lead",
+        meta=meta,
+    )
+
+    message = f"{sent_count}件のメールを送信しました"
+    if skipped_count:
+        message += f"（{skipped_count}件は送信対象外またはエラー）"
+
+    response = RedirectResponse(url=f"/ui/leads?message={message}", status_code=302)
+    response.headers["HX-Trigger"] = json.dumps(
+        {"showToast": {"message": message, "type": "success"}}
+    )
     return response

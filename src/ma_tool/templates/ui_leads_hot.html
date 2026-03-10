@@ -48,11 +48,47 @@
     </div>
 </div>
 
+{% if can_edit %}
+<div id="hot-bulk-actions" class="card mb-3" style="display: none;">
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="text-muted">
+                <span id="hot-selected-count">0</span>件を選択中
+            </span>
+            <div class="d-flex align-items-center gap-2 ms-auto">
+                {% if approved_templates %}
+                <select id="hot-bulk-email-template" class="form-select form-select-sm" style="min-width: 220px;" onchange="updateHotBulkActions()">
+                    <option value="">テンプレートを選択</option>
+                    {% for tmpl in approved_templates %}
+                    <option value="{{ tmpl.id }}" data-name="{{ (tmpl.name or '')|e }}" data-subject="{{ (tmpl.subject or '')[:80]|e }}">
+                        {{ tmpl.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn btn-sm btn-primary" onclick="hotBulkEmail()" id="hot-bulk-email-btn" disabled>
+                    <i class="bi bi-envelope"></i> 選択したリードにメール送信
+                </button>
+                {% else %}
+                <small class="text-muted">
+                    承認済みのメールテンプレートがありません（テンプレートから作成・承認してください）
+                </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="card">
     <div class="table-responsive">
         <table class="table table-hover mb-0">
             <thead class="table-light">
                 <tr>
+                    {% if can_edit %}
+                    <th style="width: 40px;">
+                        <input type="checkbox" class="form-check-input" id="hot-select-all" onchange="toggleHotSelectAll(this)">
+                    </th>
+                    {% endif %}
                     <th>温度</th>
                     <th>スコア</th>
                     <th>名前</th>
@@ -64,9 +100,17 @@
                     <th>操作</th>
                 </tr>
             </thead>
-            <tbody>
-                {% for item in leads_data %}
+                <tbody>
+                    {% for item in leads_data %}
                 <tr>
+                    {% if can_edit %}
+                    <td>
+                        <input type="checkbox"
+                               class="form-check-input hot-lead-checkbox"
+                               value="{{ item.lead.id }}"
+                               onchange="updateHotBulkActions()">
+                    </td>
+                    {% endif %}
                     <td>
                         {% if item.lead.score_band == 'hot' %}
                         <span class="badge bg-danger">🔥 Hot</span>
@@ -138,5 +182,90 @@
         {% endif %}
     </ul>
 </nav>
+{% endif %}
+
+{% if can_edit %}
+<script>
+function updateHotBulkActions() {
+    const checkboxes = document.querySelectorAll('.hot-lead-checkbox:checked');
+    const count = checkboxes.length;
+    const selectedCount = document.getElementById('hot-selected-count');
+    const bulkActions = document.getElementById('hot-bulk-actions');
+
+    if (selectedCount) selectedCount.textContent = count;
+
+    if (bulkActions) {
+        if (count > 0) {
+            bulkActions.style.display = 'block';
+        } else {
+            bulkActions.style.display = 'none';
+        }
+
+        const emailBtn = document.getElementById('hot-bulk-email-btn');
+        const templateSelect = document.getElementById('hot-bulk-email-template');
+        if (emailBtn) {
+            const hasTemplate = templateSelect && templateSelect.value;
+            emailBtn.disabled = !(count > 0 && hasTemplate);
+        }
+    }
+}
+
+function toggleHotSelectAll(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.hot-lead-checkbox');
+    checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
+    updateHotBulkActions();
+}
+
+function hotBulkEmail() {
+    const checkboxes = document.querySelectorAll('.hot-lead-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+
+    if (ids.length === 0) {
+        alert('リードを選択してください');
+        return;
+    }
+
+    const templateSelect = document.getElementById('hot-bulk-email-template');
+    if (!templateSelect || !templateSelect.value) {
+        alert('テンプレートを選択してください');
+        return;
+    }
+
+    const selectedOpt = templateSelect.selectedOptions[0];
+    const templateName = selectedOpt.getAttribute('data-name') || '(テンプレート名)';
+    let subjectPreview = selectedOpt.getAttribute('data-subject') || '(件名なし)';
+    if (subjectPreview.length > 50) {
+        subjectPreview = subjectPreview.substring(0, 50) + '...';
+    }
+
+    const msg = '以下の内容でメールを送信します。\\n\\n' +
+        '送信先: ' + ids.length + '件\\n' +
+        'テンプレート: ' + templateName + '\\n' +
+        '件名: ' + subjectPreview + '\\n\\n' +
+        'よろしいですか？';
+    if (!confirm(msg)) {
+        return;
+    }
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/ui/leads/hot/bulk-email';
+
+    const templateInput = document.createElement('input');
+    templateInput.type = 'hidden';
+    templateInput.name = 'template_id';
+    templateInput.value = templateSelect.value;
+    form.appendChild(templateInput);
+
+    const idsInput = document.createElement('input');
+    idsInput.type = 'hidden';
+    idsInput.name = 'lead_ids';
+    idsInput.value = ids.join(',');
+    form.appendChild(idsInput);
+
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
 {% endif %}
 {% endblock %}

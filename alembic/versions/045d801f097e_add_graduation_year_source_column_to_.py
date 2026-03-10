@@ -20,8 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    bind = op.get_bind()
     graduationyearsource = sa.Enum('CSV', 'ESTIMATED', name='graduationyearsource')
-    graduationyearsource.create(op.get_bind(), checkfirst=True)
+    graduationyearsource.create(bind, checkfirst=True)
     
     op.add_column('leads', sa.Column(
         'graduation_year_source',
@@ -30,7 +31,11 @@ def upgrade() -> None:
         server_default='CSV'
     ))
     op.execute("UPDATE leads SET graduation_year_source = 'CSV' WHERE graduation_year_source IS NULL")
-    op.alter_column('leads', 'graduation_year_source', nullable=False, server_default='CSV')
+    
+    # SQLite は ALTER COLUMN 構文をサポートしないため、NOT NULL 変更はスキップする
+    # （開発環境では nullable でも支障がないため）
+    if bind.dialect.name != "sqlite":
+        op.alter_column('leads', 'graduation_year_source', nullable=False, server_default='CSV')
 
 
 def downgrade() -> None:
