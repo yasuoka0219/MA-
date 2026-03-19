@@ -46,6 +46,10 @@
                             <option value="{{ et }}">
                             {% endfor %}
                         </datalist>
+                        <div class="form-text">
+                            例: <code>open</code>, <code>click</code>, <code>page_view</code>, <code>form_submit</code>,
+                            <code>download</code>, <code>purchase</code>, <code>lead_score_hot</code>, <code>lead_score_super_hot</code>
+                        </div>
                     </div>
 
                     <div class="row">
@@ -138,6 +142,18 @@
                                        value="{{ scenario.segment_tag if scenario else '' }}"
                                        placeholder="例: 理系志望">
                                 <div class="form-text">将来的な機能用（現在は未実装）</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">温度帯</label>
+                                <select name="segment_score_band" class="form-select">
+                                    <option value="">指定なし</option>
+                                    <option value="cold" {% if scenario and scenario.segment_score_band == 'cold' %}selected{% endif %}>Cold</option>
+                                    <option value="warm" {% if scenario and scenario.segment_score_band == 'warm' %}selected{% endif %}>Warm</option>
+                                    <option value="hot" {% if scenario and scenario.segment_score_band == 'hot' %}selected{% endif %}>Hot</option>
+                                    <option value="super_hot" {% if scenario and scenario.segment_score_band == 'super_hot' %}selected{% endif %}>Super Hot</option>
+                                </select>
+                                <div class="form-text">指定した温度帯のリードのみ送信対象にします。</div>
                             </div>
                         </div>
                     </div>

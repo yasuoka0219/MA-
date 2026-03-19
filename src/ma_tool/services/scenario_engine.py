@@ -154,6 +154,11 @@ def evaluate_scenario_for_lead(
     rule = parse_graduation_year_rule(scenario.graduation_year_rule)
     if not check_graduation_year_rule(lead.graduation_year, rule, event.event_date.date()):
         return False, None, "graduation_year_rule not matched"
+
+    # 温度帯フィルタ（イベント起点でも確実に効かせる）
+    if scenario.segment_score_band:
+        if (lead.score_band or "cold") != scenario.segment_score_band:
+            return False, None, "segment_score_band not matched"
     
     scheduled_for = calculate_scheduled_for(event.event_date, scenario.delay_days)
     scheduled_for = adjust_to_send_window(scheduled_for)

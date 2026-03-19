@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.ma_tool.models.lead import Lead
 from src.ma_tool.models.engagement_event import EngagementEvent
+from src.ma_tool.models.event import Event
 from src.ma_tool.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -40,12 +41,24 @@ def get_score_for_event(event_type: str, url: Optional[str] = None) -> int:
         return settings.SCORE_OPEN
     elif event_type == "page_view":
         return settings.SCORE_IMPORTANT_PAGE_VIEW if important else settings.SCORE_PAGE_VIEW
+    elif event_type == "download":
+        return settings.SCORE_DOWNLOAD
+    elif event_type == "form_submit":
+        return settings.SCORE_FORM_SUBMIT
+    elif event_type == "purchase":
+        return settings.SCORE_PURCHASE
+    elif event_type == "login":
+        return settings.SCORE_LOGIN
+    elif event_type == "account_create":
+        return settings.SCORE_ACCOUNT_CREATE
     return 0
 
 
 def calculate_score_band(score: int) -> str:
     settings = get_settings()
-    if score >= settings.SCORE_BAND_HOT:
+    if score >= settings.SCORE_BAND_SUPER_HOT:
+        return "super_hot"
+    elif score >= settings.SCORE_BAND_HOT:
         return "hot"
     elif score >= settings.SCORE_BAND_WARM:
         return "warm"
@@ -53,9 +66,20 @@ def calculate_score_band(score: int) -> str:
 
 
 def update_lead_score(db: Session, lead: Lead, points: int) -> None:
+    previous_band = lead.score_band or "cold"
     lead.engagement_score = (lead.engagement_score or 0) + points
     lead.last_engaged_at = datetime.now(JST)
     lead.score_band = calculate_score_band(lead.engagement_score)
+
+    # スコア帯が上がったタイミングでイベントを発火し、シナリオトリガーに使えるようにする
+    if lead.score_band != previous_band:
+        score_event = Event(
+            lead_id=lead.id,
+            type=f"lead_score_{lead.score_band}",
+            event_date=datetime.now(JST),
+        )
+        db.add(score_event)
+
     db.flush()
 
 
@@ -93,3 +117,19 @@ def record_engagement(
 
     db.flush()
     return event
+
+
+def create_trigger_event(
+    db: Session,
+    lead_id: int,
+    event_type: str,
+    event_date: Optional[datetime] = None,
+) -> Event:
+    trigger = Event(
+        lead_id=lead_id,
+        type=event_type,
+        event_date=event_date or datetime.now(JST),
+    )
+    db.add(trigger)
+    db.flush()
+    return trigger

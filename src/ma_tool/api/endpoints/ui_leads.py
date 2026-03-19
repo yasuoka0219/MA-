@@ -146,14 +146,21 @@ async def leads_list(
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
     search: Optional[str] = Query(None),
-    graduation_year: Optional[int] = Query(None),
+    graduation_year: Optional[str] = Query(None),
     interest: Optional[str] = Query(None),
     unsubscribed_filter: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     message: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
 ):
-    query = build_lead_query(db, search, graduation_year, interest, unsubscribed_filter)
+    grad_year_int: Optional[int] = None
+    if graduation_year:
+        try:
+            grad_year_int = int(graduation_year)
+        except ValueError:
+            grad_year_int = None
+
+    query = build_lead_query(db, search, grad_year_int, interest, unsubscribed_filter)
     
     per_page = 50
     offset = (page - 1) * per_page
@@ -195,7 +202,7 @@ async def leads_list(
         "line_identities": line_identities,
         "lead_statuses": lead_statuses,
         "search": search or "",
-        "graduation_year": graduation_year,
+        "graduation_year": grad_year_int,
         "interest": interest or "",
         "unsubscribed_filter": unsubscribed_filter or "",
         "page": page,
@@ -328,12 +335,19 @@ async def leads_export(
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
     search: Optional[str] = Query(None),
-    graduation_year: Optional[int] = Query(None),
+    graduation_year: Optional[str] = Query(None),
     interest: Optional[str] = Query(None),
     unsubscribed_filter: Optional[str] = Query(None),
 ):
     """リード一覧をCSV形式でエクスポート"""
-    query = build_lead_query(db, search, graduation_year, interest, unsubscribed_filter)
+    grad_year_int: Optional[int] = None
+    if graduation_year:
+        try:
+            grad_year_int = int(graduation_year)
+        except ValueError:
+            grad_year_int = None
+
+    query = build_lead_query(db, search, grad_year_int, interest, unsubscribed_filter)
     leads = db.execute(query).scalars().all()
     
     # LINE連携情報を取得

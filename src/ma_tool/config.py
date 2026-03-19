@@ -40,11 +40,17 @@ class Settings(BaseSettings):
     SCORE_OPEN: int = 1
     SCORE_CLICK: int = 3
     SCORE_PAGE_VIEW: int = 1
+    SCORE_DOWNLOAD: int = 8
+    SCORE_FORM_SUBMIT: int = 12
+    SCORE_PURCHASE: int = 30
+    SCORE_LOGIN: int = 2
+    SCORE_ACCOUNT_CREATE: int = 10
     SCORE_IMPORTANT_CLICK: int = 5
     SCORE_IMPORTANT_PAGE_VIEW: int = 3
     
     SCORE_BAND_WARM: int = 3
     SCORE_BAND_HOT: int = 8
+    SCORE_BAND_SUPER_HOT: int = 20
     
     # CSVインポート: アップロード許容サイズ（MB）。本番で 413 やタイムアウトが出る場合は小さくする
     CSV_MAX_UPLOAD_MB: int = 50

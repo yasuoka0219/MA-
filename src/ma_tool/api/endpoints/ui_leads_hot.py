@@ -45,7 +45,7 @@ async def leads_hot(
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
     band: Optional[str] = Query(None),
-    graduation_year: Optional[int] = Query(None),
+    graduation_year: Optional[str] = Query(None),
     days: Optional[int] = Query(None),
     min_pv: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
@@ -58,8 +58,15 @@ async def leads_hot(
 
     if band:
         query = query.where(Lead.score_band == band)
+
+    grad_year_int: Optional[int] = None
     if graduation_year:
-        query = query.where(Lead.graduation_year == graduation_year)
+        try:
+            grad_year_int = int(graduation_year)
+        except ValueError:
+            grad_year_int = None
+    if grad_year_int:
+        query = query.where(Lead.graduation_year == grad_year_int)
     if days:
         cutoff = now - timedelta(days=days)
         query = query.where(Lead.last_engaged_at >= cutoff)
@@ -129,6 +136,7 @@ async def leads_hot(
             "pv_7d": pv_7d,
         })
 
+    super_hot_count = db.execute(select(func.count()).select_from(Lead).where(Lead.score_band == "super_hot")).scalar() or 0
     hot_count = db.execute(select(func.count()).select_from(Lead).where(Lead.score_band == "hot")).scalar() or 0
     warm_count = db.execute(select(func.count()).select_from(Lead).where(Lead.score_band == "warm")).scalar() or 0
     cold_count = db.execute(select(func.count()).select_from(Lead).where(Lead.score_band == "cold")).scalar() or 0
@@ -154,11 +162,12 @@ async def leads_hot(
         "per_page": per_page,
         "page": page,
         "band": band or "",
-        "graduation_year": graduation_year,
+        "graduation_year": grad_year_int,
         "graduation_years": graduation_years,
         "days": days,
         "min_pv": min_pv,
         "search": search or "",
+        "super_hot_count": super_hot_count,
         "hot_count": hot_count,
         "warm_count": warm_count,
         "cold_count": cold_count,

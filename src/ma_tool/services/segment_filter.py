@@ -54,6 +54,9 @@ def apply_segment_conditions(
     
     if scenario.segment_tag:
         conditions.append(Lead.interest_tags.ilike(f"%{scenario.segment_tag}%"))
+
+    if scenario.segment_score_band:
+        conditions.append(Lead.score_band == scenario.segment_score_band)
     
     if conditions:
         query = query.where(and_(*conditions))
@@ -263,6 +266,8 @@ def get_scenario_preview(
         condition_parts.append(f"高校={scenario.segment_school_name}")
     if scenario.segment_tag:
         condition_parts.append(f"タグ={scenario.segment_tag}")
+    if scenario.segment_score_band:
+        condition_parts.append(f"温度帯={scenario.segment_score_band}")
     if scenario.segment_event_status_in and scenario.base_date_type == "event_date":
         try:
             statuses = json.loads(scenario.segment_event_status_in)

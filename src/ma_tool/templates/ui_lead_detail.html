@@ -43,7 +43,9 @@
             </div>
             <div class="card-body text-center">
                 <div class="mb-3">
-                    {% if lead.score_band == 'hot' %}
+                    {% if lead.score_band == 'super_hot' %}
+                    <span class="badge bg-dark fs-4 px-4 py-2">🔥🔥 Super Hot</span>
+                    {% elif lead.score_band == 'hot' %}
                     <span class="badge bg-danger fs-4 px-4 py-2">🔥 Hot</span>
                     {% elif lead.score_band == 'warm' %}
                     <span class="badge bg-warning text-dark fs-4 px-4 py-2">🟡 Warm</span>
@@ -200,6 +202,16 @@
                             <span class="badge bg-success"><i class="bi bi-cursor"></i> クリック</span>
                             {% elif ev.event_type == 'page_view' %}
                             <span class="badge bg-primary"><i class="bi bi-eye"></i> PV</span>
+                            {% elif ev.event_type == 'download' %}
+                            <span class="badge bg-primary"><i class="bi bi-download"></i> 資料DL</span>
+                            {% elif ev.event_type == 'form_submit' %}
+                            <span class="badge bg-success"><i class="bi bi-ui-checks"></i> フォーム送信</span>
+                            {% elif ev.event_type == 'purchase' %}
+                            <span class="badge bg-danger"><i class="bi bi-credit-card"></i> 購入/決済</span>
+                            {% elif ev.event_type == 'login' %}
+                            <span class="badge bg-secondary"><i class="bi bi-box-arrow-in-right"></i> ログイン</span>
+                            {% elif ev.event_type == 'account_create' %}
+                            <span class="badge bg-dark"><i class="bi bi-person-plus"></i> アカウント作成</span>
                             {% elif ev.event_type == 'bounce' %}
                             <span class="badge bg-danger"><i class="bi bi-x-circle"></i> バウンス</span>
                             {% elif ev.event_type == 'unsubscribe' %}

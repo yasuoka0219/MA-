@@ -168,6 +168,7 @@ async def scenario_create(
     segment_prefecture: Optional[str] = Form(None),
     segment_school_name: Optional[str] = Form(None),
     segment_tag: Optional[str] = Form(None),
+    segment_score_band: Optional[str] = Form(None),
     segment_event_status_in: Optional[List[str]] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
@@ -195,6 +196,7 @@ async def scenario_create(
         segment_prefecture=segment_prefecture or None,
         segment_school_name=segment_school_name or None,
         segment_tag=segment_tag or None,
+        segment_score_band=segment_score_band or None,
         segment_event_status_in=status_in_json,
     )
     db.add(scenario)
@@ -267,6 +269,7 @@ async def scenario_update(
     segment_prefecture: Optional[str] = Form(None),
     segment_school_name: Optional[str] = Form(None),
     segment_tag: Optional[str] = Form(None),
+    segment_score_band: Optional[str] = Form(None),
     segment_event_status_in: Optional[List[str]] = Form(None),
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
@@ -298,6 +301,7 @@ async def scenario_update(
     scenario.segment_prefecture = segment_prefecture or None
     scenario.segment_school_name = segment_school_name or None
     scenario.segment_tag = segment_tag or None
+    scenario.segment_score_band = segment_score_band or None
     scenario.segment_event_status_in = status_in_json
     scenario.updated_at = datetime.now(timezone.utc)
     db.commit()

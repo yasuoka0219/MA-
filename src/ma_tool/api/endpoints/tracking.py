@@ -18,7 +18,7 @@ from src.ma_tool.database import get_db
 from src.ma_tool.models.lead import Lead
 from src.ma_tool.models.send_log import SendLog
 from src.ma_tool.models.web_session import WebSession
-from src.ma_tool.services.scoring import record_engagement
+from src.ma_tool.services.scoring import record_engagement, create_trigger_event
 from src.ma_tool.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -109,6 +109,8 @@ def track_open(
                     scenario_id=send_log.scenario_id,
                     calendar_event_id=send_log.calendar_event_id,
                 )
+                if send_log.lead_id:
+                    create_trigger_event(db, lead_id=send_log.lead_id, event_type="open")
                 db.commit()
                 logger.info(f"Email opened: send_log_id={send_log_id}")
 
@@ -163,6 +165,7 @@ def track_click(
                 calendar_event_id=calendar_event_id,
                 url=target_url,
             )
+            create_trigger_event(db, lead_id=lead_id, event_type="click")
 
             if lead and lead.tracking_id:
                 parsed = urlparse(target_url)
@@ -191,6 +194,24 @@ class PageViewRequest(BaseModel):
     url: str
     referrer: Optional[str] = None
     ts: Optional[float] = None
+
+
+class CustomEventRequest(BaseModel):
+    tid: str
+    event_type: str
+    url: Optional[str] = None
+    referrer: Optional[str] = None
+    meta: Optional[dict] = None
+    ts: Optional[float] = None
+
+
+ALLOWED_CUSTOM_EVENT_TYPES = {
+    "download",
+    "form_submit",
+    "purchase",
+    "login",
+    "account_create",
+}
 
 
 def _cors_headers(request: Request) -> dict:
@@ -268,9 +289,49 @@ async def track_page_view(
         referrer=body.referrer,
         meta_json=json.dumps({"tid": tid}) if tid else None,
     )
+    if lead_id:
+        create_trigger_event(db, lead_id=lead_id, event_type="page_view")
 
     db.commit()
     logger.info(f"Page view tracked: tid={tid[:8]}..., lead_id={lead_id}, url={body.url[:80]}")
+    return JSONResponse({"ok": True}, headers=headers)
+
+
+@router.post("/event")
+async def track_custom_event(
+    request: Request,
+    body: CustomEventRequest,
+    db: Session = Depends(get_db),
+):
+    headers = _cors_headers(request)
+    if not headers:
+        return Response(status_code=403)
+
+    tid = body.tid.strip()
+    event_type = (body.event_type or "").strip().lower()
+    if not tid or len(tid) > 64:
+        return JSONResponse({"ok": False, "error": "invalid_tid"}, status_code=400, headers=headers)
+
+    if event_type not in ALLOWED_CUSTOM_EVENT_TYPES:
+        return JSONResponse({"ok": False, "error": "invalid_event_type"}, status_code=400, headers=headers)
+
+    lead = db.execute(
+        select(Lead).where(Lead.tracking_id == tid)
+    ).scalar_one_or_none()
+    lead_id = lead.id if lead else None
+
+    record_engagement(
+        db,
+        event_type=event_type,
+        lead_id=lead_id,
+        url=body.url,
+        referrer=body.referrer,
+        meta_json=json.dumps(body.meta) if body.meta else None,
+    )
+    if lead_id:
+        create_trigger_event(db, lead_id=lead_id, event_type=event_type)
+    db.commit()
+    logger.info(f"Custom event tracked: type={event_type}, tid={tid[:8]}..., lead_id={lead_id}")
     return JSONResponse({"ok": True}, headers=headers)
 
 
@@ -283,6 +344,7 @@ async def tracking_snippet(request: Request):
 // MA Tool Tracking Snippet
 (function() {{
   var MA_PV_URL = "{base_url}/t/pv";
+  var MA_EVENT_URL = "{base_url}/t/event";
   var COOKIE_NAME = "ma_tid";
   var COOKIE_DAYS = 365;
 
@@ -325,6 +387,28 @@ async def tracking_snippet(request: Request):
       }});
     }}
   }} catch(e) {{}}
+
+  // Usage:
+  // window.maTrack("form_submit", {{form_id: "inquiry"}})
+  window.maTrack = function(eventType, meta) {{
+    if (!tid || !eventType) return;
+    var payload = {{
+      tid: tid,
+      event_type: eventType,
+      url: window.location.href,
+      referrer: document.referrer || null,
+      meta: meta || null,
+      ts: Date.now() / 1000
+    }};
+    try {{
+      fetch(MA_EVENT_URL, {{
+        method: "POST",
+        headers: {{"Content-Type": "application/json"}},
+        body: JSON.stringify(payload),
+        keepalive: true
+      }});
+    }} catch(e) {{}}
+  }};
 }})();
 """
     return Response(
