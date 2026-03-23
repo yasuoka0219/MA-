@@ -15,9 +15,10 @@
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 {% endif %}
-{% if error %}
+{% set error_msg = error or request.query_params.get('error') %}
+{% if error_msg %}
 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    <i class="bi bi-exclamation-triangle"></i> {{ error_msg }}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 {% endif %}
