@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import math
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -29,6 +30,7 @@ from src.ma_tool.services.email import send_email
 from src.ma_tool.services.audit import log_action
 
 JST = ZoneInfo("Asia/Tokyo")
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ui", tags=["UI Leads"])
 templates = Jinja2Templates(directory="src/ma_tool/templates")
@@ -799,6 +801,12 @@ async def lead_send_email(
         if failure_detail:
             # 長文でUIが崩れるのを防ぐ
             toast_detail = f"{base_message}: {failure_detail}"[:220]
+        logger.warning(
+            "Lead email send failed: lead_id=%s template_id=%s detail=%s",
+            lead.id,
+            template.id,
+            failure_detail or "(no detail)",
+        )
         error_for_query = quote(toast_detail)
         response = RedirectResponse(url=f"/ui/leads/{lead.id}?error={error_for_query}", status_code=302)
 
