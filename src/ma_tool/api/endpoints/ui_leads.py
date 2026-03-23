@@ -753,6 +753,7 @@ async def lead_send_email(
         return response
 
     sent = False
+    failure_detail: str | None = None
     try:
         body = render_email_body(template.body_html or "", lead)
         subject = render_subject(template.subject or "", lead)
@@ -762,8 +763,11 @@ async def lead_send_email(
             html_content=body,
         )
         sent = result.success
-    except Exception:
+        if not sent and result.message:
+            failure_detail = result.message
+    except Exception as e:
         sent = False
+        failure_detail = f"例外: {str(e)}"
 
     meta = {
         "template_id": template.id,
@@ -787,10 +791,17 @@ async def lead_send_email(
             {"showToast": {"message": message, "type": "success"}}
         )
     else:
-        message = "メールの送信に失敗しました"
-        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error={message}", status_code=302)
+        base_message = "メールの送信に失敗しました"
+        # URLクエリは危険文字が入る場合があるため、詳細は toast のみに出す
+        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error={base_message}", status_code=302)
+
+        toast_detail = base_message
+        if failure_detail:
+            # 長文でUIが崩れるのを防ぐ
+            toast_detail = f"{base_message}: {failure_detail}"[:220]
+
         response.headers["HX-Trigger"] = json.dumps(
-            {"showToast": {"message": message, "type": "error"}}
+            {"showToast": {"message": toast_detail, "type": "error"}}
         )
     return response
 
