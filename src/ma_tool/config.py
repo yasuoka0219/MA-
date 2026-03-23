@@ -37,15 +37,16 @@ class Settings(BaseSettings):
     IMPORTANT_PAGE_PATHS: str = "/apply,/exam,/entry,/admission,/nyushi,/shutsugan,/opencampus"
     TRACKING_ALLOWED_ORIGINS: str = ""
     
+    # 開封よりクリックの方が温度（スコア帯）が上がりやすいようにする
     SCORE_OPEN: int = 1
-    SCORE_CLICK: int = 3
+    SCORE_CLICK: int = 6
     SCORE_PAGE_VIEW: int = 1
     SCORE_DOWNLOAD: int = 8
     SCORE_FORM_SUBMIT: int = 12
     SCORE_PURCHASE: int = 30
     SCORE_LOGIN: int = 2
     SCORE_ACCOUNT_CREATE: int = 10
-    SCORE_IMPORTANT_CLICK: int = 5
+    SCORE_IMPORTANT_CLICK: int = 9
     SCORE_IMPORTANT_PAGE_VIEW: int = 3
     
     SCORE_BAND_WARM: int = 3

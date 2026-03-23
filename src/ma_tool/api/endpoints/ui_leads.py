@@ -577,6 +577,8 @@ async def lead_detail(
         .limit(50)
     ).scalars().all()
 
+    last_engagement = engagement_events[0] if engagement_events else None
+
     pv_7d = db.execute(
         select(func.count()).select_from(EngagementEvent)
         .where(and_(
@@ -622,6 +624,9 @@ async def lead_detail(
         "scenarios": scenarios,
         "message": message,
         "engagement_events": engagement_events,
+        "last_engagement_event_type": last_engagement.event_type if last_engagement else None,
+        "last_engagement_url": last_engagement.url if last_engagement else None,
+        "last_engagement_occurred_at": last_engagement.occurred_at if last_engagement else lead.last_engaged_at,
         "pv_7d": pv_7d,
         "click_count": click_count,
         "important_pv_count": important_pv_count,

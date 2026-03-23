@@ -1,5 +1,7 @@
 """APScheduler-based scenario runner with rate limiting and retry"""
 import logging
+import re
+import html as html_lib
 from datetime import datetime, timedelta, date
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -26,6 +28,7 @@ from src.ma_tool.services.scenario_engine import (
 from src.ma_tool.services.template_renderer import render_email_body, render_subject
 from src.ma_tool.services.segment_filter import apply_segment_conditions, is_valid_email, get_status_filter_list
 from src.ma_tool.config import get_settings
+from src.ma_tool.api.endpoints.tracking import get_tracking_pixel_url, get_click_tracking_url
 
 logger = logging.getLogger(__name__)
 JST = ZoneInfo("Asia/Tokyo")
@@ -48,13 +51,10 @@ def get_pending_send_logs(db: Session, now: datetime, limit: int = RATE_LIMIT_PE
 
 
 def generate_tracking_pixel_url(send_log_id: int) -> str:
+    """実際のトラッキングAPIは `/t/open/{token}.png`（tracking ルーター）。"""
     settings = get_settings()
-    base_url = getattr(settings, 'BASE_URL', 'https://example.com')
-    secret = settings.TRACKING_SECRET
-    from itsdangerous import URLSafeSerializer
-    serializer = URLSafeSerializer(secret)
-    token = serializer.dumps({"send_log_id": send_log_id})
-    return f"{base_url}/tracking/open/{token}"
+    base_url = getattr(settings, "BASE_URL", "https://example.com").rstrip("/")
+    return get_tracking_pixel_url(send_log_id, base_url=base_url)
 
 
 def inject_tracking_pixel(html_body: str, send_log_id: int) -> str:
@@ -64,6 +64,65 @@ def inject_tracking_pixel(html_body: str, send_log_id: int) -> str:
         idx = html_body.lower().rfind('</body>')
         return html_body[:idx] + pixel_tag + html_body[idx:]
     return html_body + pixel_tag
+
+
+_HREF_RE = re.compile(r'(href\s*=\s*)(["\'])(.*?)\2', flags=re.IGNORECASE | re.DOTALL)
+
+
+def _should_wrap_click_tracking(target_url: str) -> bool:
+    if not target_url:
+        return False
+    url = target_url.strip()
+    lower = url.lower()
+
+    # 既にクリック計測URLになっている場合は二重ラップしない
+    if "/t/c/" in lower:
+        return False
+
+    # 計測不要なリンク種別
+    if lower.startswith("mailto:") or lower.startswith("tel:") or lower.startswith("sms:"):
+        return False
+    if lower.startswith("javascript:"):
+        return False
+    if lower.startswith("#"):
+        return False
+
+    return True
+
+
+def inject_click_tracking_links(
+    html_body: str,
+    *,
+    send_log: SendLog,
+    lead: Lead,
+) -> str:
+    """
+    シナリオ/スケジュール送信のHTMLに含まれるリンクを `/t/c/{token}` に置換してクリック計測を有効化する。
+    """
+    settings = get_settings()
+    base_url = getattr(settings, "BASE_URL", "https://example.com").rstrip("/")
+
+    def _repl(match: re.Match) -> str:
+        prefix = match.group(1)
+        quote = match.group(2)
+        raw_target_url = match.group(3)
+
+        # HTMLエンティティ（&amp;など）を URL 文字列に戻して、クリック時のリダイレクトが壊れないようにする
+        target_url = html_lib.unescape(raw_target_url).strip()
+        if not _should_wrap_click_tracking(target_url):
+            return match.group(0)
+
+        click_tracking_url = get_click_tracking_url(
+            send_log_id=send_log.id,
+            lead_id=lead.id,
+            target_url=target_url,
+            base_url=base_url,
+            scenario_id=send_log.scenario_id,
+            calendar_event_id=send_log.calendar_event_id,
+        )
+        return f"{prefix}{quote}{click_tracking_url}{quote}"
+
+    return _HREF_RE.sub(_repl, html_body)
 
 
 def send_single_email(
@@ -83,6 +142,7 @@ def send_single_email(
         
         rendered_body = render_email_body(template.body_html or "", lead)
         html_with_tracking = inject_tracking_pixel(rendered_body, send_log.id)
+        html_with_tracking = inject_click_tracking_links(html_with_tracking, send_log=send_log, lead=lead)
         
         subject = render_subject(template.subject or "", lead)
         
