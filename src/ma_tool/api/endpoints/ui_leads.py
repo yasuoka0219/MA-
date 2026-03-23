@@ -6,6 +6,7 @@ import math
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
+from urllib.parse import quote
 from fastapi import APIRouter, Request, Depends, Query, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -541,6 +542,7 @@ async def lead_detail(
     db: Session = Depends(get_db),
     user: User = Depends(require_session_login),
     message: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
 ):
     lead = db.execute(select(Lead).where(Lead.id == lead_id)).scalar_one_or_none()
     if not lead:
@@ -623,6 +625,7 @@ async def lead_detail(
         "send_logs": send_logs,
         "scenarios": scenarios,
         "message": message,
+        "error": error,
         "engagement_events": engagement_events,
         "last_engagement_event_type": last_engagement.event_type if last_engagement else None,
         "last_engagement_url": last_engagement.url if last_engagement else None,
@@ -792,13 +795,12 @@ async def lead_send_email(
         )
     else:
         base_message = "メールの送信に失敗しました"
-        # URLクエリは危険文字が入る場合があるため、詳細は toast のみに出す
-        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error={base_message}", status_code=302)
-
         toast_detail = base_message
         if failure_detail:
             # 長文でUIが崩れるのを防ぐ
             toast_detail = f"{base_message}: {failure_detail}"[:220]
+        error_for_query = quote(toast_detail)
+        response = RedirectResponse(url=f"/ui/leads/{lead.id}?error={error_for_query}", status_code=302)
 
         response.headers["HX-Trigger"] = json.dumps(
             {"showToast": {"message": toast_detail, "type": "error"}}
