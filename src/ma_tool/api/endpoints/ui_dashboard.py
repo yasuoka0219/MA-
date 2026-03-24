@@ -1,15 +1,16 @@
 """UI Dashboard endpoint with KPI cards"""
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func, and_
 
 from src.ma_tool.database import get_db
-from src.ma_tool.models.user import User
+from src.ma_tool.models.user import User, UserRole
 from src.ma_tool.models.lead import Lead
 from src.ma_tool.models.template import Template, TemplateStatus
 from src.ma_tool.models.scenario import Scenario
@@ -17,6 +18,7 @@ from src.ma_tool.models.send_log import SendLog, SendStatus
 from src.ma_tool.models.engagement_event import EngagementEvent
 from src.ma_tool.config import settings
 from src.ma_tool.api.endpoints.ui_auth import get_base_context
+from src.ma_tool.services.demo_temperature_leads import seed_demo_temperature_leads
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -32,7 +34,12 @@ def get_current_user(request: Request, db: Session) -> Optional[User]:
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, db: Session = Depends(get_db)):
+async def dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    message: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+):
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url="/ui/login", status_code=302)
@@ -83,6 +90,9 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse("ui_dashboard.html", {
         **get_base_context(request, user),
+        "is_admin": user.role == UserRole.ADMIN,
+        "message": message,
+        "error": error,
         "leads_count": leads_count,
         "templates_approved": templates_approved,
         "templates_total": templates_total,
@@ -96,6 +106,35 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         "events_7d": events_7d,
         "top_hot_leads": top_hot_leads,
     })
+
+
+@router.post("/admin/seed-demo-temperature-leads")
+async def seed_demo_temperature_leads_endpoint(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """管理者のみ: 温度帯デモ用リード4件を投入・更新する"""
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url="/ui/login", status_code=302)
+    if user.role != UserRole.ADMIN:
+        return RedirectResponse(
+            url=f"/ui/dashboard?error={quote('権限がありません')}",
+            status_code=302,
+        )
+
+    try:
+        created, updated = seed_demo_temperature_leads(db)
+        msg = f"デモ用リードを反映しました（新規{created}件・更新{updated}件）。検索語 ma-demo で絞り込みました。"
+        return RedirectResponse(
+            url=f"/ui/leads?search=ma-demo&message={quote(msg)}",
+            status_code=302,
+        )
+    except Exception:
+        return RedirectResponse(
+            url=f"/ui/dashboard?error={quote('デモリードの作成に失敗しました')}",
+            status_code=302,
+        )
 
 
 @router.get("", response_class=HTMLResponse)

@@ -7,6 +7,31 @@
     <h2><i class="bi bi-speedometer2"></i> ダッシュボード</h2>
 </div>
 
+{% if message %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle"></i> {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if is_admin %}
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2 mb-4" role="alert">
+    <form method="post" action="/ui/admin/seed-demo-temperature-leads" class="d-inline">
+        <button type="submit" class="btn btn-sm btn-primary"
+            onclick="return confirm('温度帯デモ用リード4件（Cold/Warm/Hot/Super Hot）を作成または更新します。よろしいですか？');">
+            <i class="bi bi-thermometer-half"></i> 温度帯デモ用リードを作成
+        </button>
+    </form>
+    <small class="text-muted">管理者のみ。メールは <code>ma-demo-*@example.com</code> のダミーです。リード一覧で検索語 <code>ma-demo</code> を使うと一覧できます。</small>
+</div>
+{% endif %}
+
 <div class="row g-4 mb-4">
     <div class="col-md-3">
         <div class="card card-stat card-stat-primary shadow-sm">
