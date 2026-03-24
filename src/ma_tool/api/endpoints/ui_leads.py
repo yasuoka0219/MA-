@@ -259,6 +259,7 @@ async def leads_list(
     
     return templates.TemplateResponse("ui_leads_list.html", {
         **get_base_context(request, user),
+        "is_admin": user.role == UserRole.ADMIN,
         "leads": leads,
         "line_identities": line_identities,
         "lead_statuses": lead_statuses,

@@ -20,6 +20,14 @@
     <h2><i class="bi bi-people me-2"></i>リード一覧</h2>
     <div class="d-flex align-items-center gap-2">
         <span class="badge bg-secondary">{{ total_count }}件</span>
+        {% if is_admin %}
+        <form method="post" action="/ui/admin/seed-demo-temperature-leads" class="d-inline">
+            <button type="submit" class="btn btn-outline-primary"
+                onclick="return confirm('デモ用温度帯リードのステータスを反映します。よろしいですか？');">
+                <i class="bi bi-thermometer-half"></i> デモステータス反映
+            </button>
+        </form>
+        {% endif %}
         <a href="#" id="export-link" class="btn btn-outline-success">
             <i class="bi bi-download"></i> CSVエクスポート
         </a>
