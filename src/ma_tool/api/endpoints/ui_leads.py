@@ -119,6 +119,7 @@ def build_lead_query(
     graduation_year: Optional[int] = None,
     interest: Optional[str] = None,
     unsubscribed_filter: Optional[str] = None,
+    status_filter: Optional[str] = None,
 ):
     """リード検索クエリを構築（一覧表示とエクスポートで共通使用）"""
     query = select(Lead)
@@ -139,6 +140,62 @@ def build_lead_query(
         query = query.where(Lead.unsubscribed == True)
     elif unsubscribed_filter == "false":
         query = query.where(Lead.unsubscribed == False)
+
+    # ステータス絞り込み（重要ページ訪問 / クリック / サイト訪問 / 開封 / 未反応）
+    if status_filter:
+        if status_filter == "important_page":
+            important_paths = getattr(settings, "important_page_list", []) or []
+            if important_paths:
+                path_conds = or_(*[EngagementEvent.url.ilike(f"%{p.strip()}%") for p in important_paths if p.strip()])
+                important_subq = select(EngagementEvent.lead_id).where(
+                    and_(
+                        EngagementEvent.event_type == "page_view",
+                        EngagementEvent.lead_id.isnot(None),
+                        path_conds,
+                    )
+                )
+                query = query.where(Lead.id.in_(important_subq))
+            else:
+                query = query.where(Lead.id == -1)
+        elif status_filter == "click":
+            click_subq = select(EngagementEvent.lead_id).where(
+                and_(
+                    EngagementEvent.event_type == "click",
+                    EngagementEvent.lead_id.isnot(None),
+                )
+            )
+            query = query.where(Lead.id.in_(click_subq))
+        elif status_filter == "page_view":
+            pv_subq = select(EngagementEvent.lead_id).where(
+                and_(
+                    EngagementEvent.event_type == "page_view",
+                    EngagementEvent.lead_id.isnot(None),
+                )
+            )
+            query = query.where(Lead.id.in_(pv_subq))
+        elif status_filter == "open":
+            open_ev_subq = select(EngagementEvent.lead_id).where(
+                and_(
+                    EngagementEvent.event_type == "open",
+                    EngagementEvent.lead_id.isnot(None),
+                )
+            )
+            open_log_subq = select(SendLog.lead_id).where(SendLog.opened_at.isnot(None))
+            query = query.where(or_(Lead.id.in_(open_ev_subq), Lead.id.in_(open_log_subq)))
+        elif status_filter == "none":
+            reacted_subq = select(EngagementEvent.lead_id).where(
+                and_(
+                    EngagementEvent.lead_id.isnot(None),
+                    EngagementEvent.event_type.in_(["open", "click", "page_view"]),
+                )
+            )
+            opened_subq = select(SendLog.lead_id).where(SendLog.opened_at.isnot(None))
+            query = query.where(
+                and_(
+                    Lead.id.not_in(reacted_subq),
+                    Lead.id.not_in(opened_subq),
+                )
+            )
     
     return query.order_by(Lead.created_at.desc())
 
@@ -152,6 +209,7 @@ async def leads_list(
     graduation_year: Optional[str] = Query(None),
     interest: Optional[str] = Query(None),
     unsubscribed_filter: Optional[str] = Query(None),
+    status_filter: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     message: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
@@ -163,7 +221,7 @@ async def leads_list(
         except ValueError:
             grad_year_int = None
 
-    query = build_lead_query(db, search, grad_year_int, interest, unsubscribed_filter)
+    query = build_lead_query(db, search, grad_year_int, interest, unsubscribed_filter, status_filter)
     
     per_page = 50
     offset = (page - 1) * per_page
@@ -208,6 +266,7 @@ async def leads_list(
         "graduation_year": grad_year_int,
         "interest": interest or "",
         "unsubscribed_filter": unsubscribed_filter or "",
+        "status_filter": status_filter or "",
         "page": page,
         "total_count": total_count,
         "per_page": per_page,
@@ -341,6 +400,7 @@ async def leads_export(
     graduation_year: Optional[str] = Query(None),
     interest: Optional[str] = Query(None),
     unsubscribed_filter: Optional[str] = Query(None),
+    status_filter: Optional[str] = Query(None),
 ):
     """リード一覧をCSV形式でエクスポート"""
     grad_year_int: Optional[int] = None
@@ -350,7 +410,7 @@ async def leads_export(
         except ValueError:
             grad_year_int = None
 
-    query = build_lead_query(db, search, grad_year_int, interest, unsubscribed_filter)
+    query = build_lead_query(db, search, grad_year_int, interest, unsubscribed_filter, status_filter)
     leads = db.execute(query).scalars().all()
     
     # LINE連携情報を取得

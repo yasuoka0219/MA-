@@ -104,6 +104,17 @@
                     <option value="true" {% if unsubscribed_filter == 'true' %}selected{% endif %}>配信停止中</option>
                 </select>
             </div>
+            <div class="col-md-2">
+                <label class="form-label">反応ステータス</label>
+                <select name="status_filter" class="form-select">
+                    <option value="">すべて</option>
+                    <option value="important_page" {% if status_filter == 'important_page' %}selected{% endif %}>重要ページ訪問</option>
+                    <option value="click" {% if status_filter == 'click' %}selected{% endif %}>クリック済み</option>
+                    <option value="page_view" {% if status_filter == 'page_view' %}selected{% endif %}>サイト訪問あり</option>
+                    <option value="open" {% if status_filter == 'open' %}selected{% endif %}>開封済み</option>
+                    <option value="none" {% if status_filter == 'none' %}selected{% endif %}>未反応</option>
+                </select>
+            </div>
             <div class="col-md-2 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary me-2">
                     <i class="bi bi-search"></i> 検索
@@ -216,7 +227,7 @@
     <ul class="pagination justify-content-center">
         {% if page > 1 %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ page - 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}&unsubscribed_filter={{ unsubscribed_filter }}">前へ</a>
+            <a class="page-link" href="?page={{ page - 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}&unsubscribed_filter={{ unsubscribed_filter }}&status_filter={{ status_filter }}">前へ</a>
         </li>
         {% endif %}
         <li class="page-item disabled">
@@ -230,7 +241,7 @@
         </li>
         {% if page * per_page < total_count %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ page + 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}&unsubscribed_filter={{ unsubscribed_filter }}">次へ</a>
+            <a class="page-link" href="?page={{ page + 1 }}&search={{ search }}&graduation_year={{ graduation_year or '' }}&interest={{ interest }}&unsubscribed_filter={{ unsubscribed_filter }}&status_filter={{ status_filter }}">次へ</a>
         </li>
         {% endif %}
     </ul>
@@ -252,6 +263,9 @@
     {% endif %}
     {% if unsubscribed_filter %}
     params.append('unsubscribed_filter', '{{ unsubscribed_filter }}');
+    {% endif %}
+    {% if status_filter %}
+    params.append('status_filter', '{{ status_filter }}');
     {% endif %}
     
     const queryString = params.toString();
